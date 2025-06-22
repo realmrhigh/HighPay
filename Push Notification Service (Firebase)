@@ -1,0 +1,324 @@
+// src/services/pushNotificationService.js
+const admin = require('firebase-admin');
+const path = require('path');
+
+// --- Firebase Admin SDK Initialization ---
+try {
+    // The path to the service account key JSON file is stored in an environment variable.
+    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    if (!serviceAccountPath) {
+        console.warn('Firebase service account key path not found. Push notifications are disabled.');
+    } else {
+        const serviceAccount = require(path.resolve(serviceAccountPath));
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        console.log('✅ Firebase Admin SDK initialized successfully. Push notifications are active.');
+    }
+} catch (error) {
+    console.error('💥 Firebase Admin SDK initialization failed:', error.message);
+    console.warn('Push notifications will be disabled.');
+}
+
+/**
+ * A generic function to send a push notification to a device.
+ * @param {string} token - The Firebase Cloud Messaging (FCM) registration token for the device.
+ * @param {string} title - The title of the notification.
+ * @param {string} body - The main text/body of the notification.
+ * @param {object} data - An object containing key-value pairs of custom data to send with the message.
+ */
+const sendPushNotification = async (token, title, body, data = {}) => {
+    // Check if the SDK was initialized and if a token is provided.
+    if (!admin.apps.length || !token) {
+        console.log('Push notification not sent (service disabled or no token).');
+        return;
+    }
+    
+    const message = {
+        notification: { title, body },
+        token: token,
+        data: data,
+        // Set APNs and Android specific configurations for better delivery.
+        apns: {
+            payload: {
+                aps: {
+                    sound: 'default',
+                },
+            },
+        },
+        android: {
+            priority: 'high',
+        },
+    };
+
+    try {
+        const response = await admin.messaging().send(message);
+        console.log('Successfully sent message:', response, 'to token:', token);
+    } catch (error) {
+        console.error('Error sending push notification:', error);
+    }
+};
+
+
+// --- Specific Notification Senders ---
+
+/**
+ * Sends a "Payday" notification to a user.
+ * @param {string} userToken - The user's FCM token.
+ * @param {string} payStubId - The ID of the newly available pay stub.
+ * @param {number} amount - The net pay amount for the pay stub.
+ */
+const sendPaydayNotification = (userToken, payStubId, amount) => {
+    const title = 'You Got Paid!';
+    const body = `Your pay stub for $${parseFloat(amount).toFixed(2)} is now available.`;
+    const data = {
+        type: 'payday',
+        payStubId: payStubId,
+        amount: String(amount)
+    };
+    sendPushNotification(userToken, title, body, data);
+};
+
+/**
+ * Sends a "Meal Break Reminder" notification to a user.
+ * Note: This function would be called by a separate scheduler/cron job in a full implementation.
+ * @param {string} userToken - The user's FCM token.
+ * @param {number} hoursWorked - The number of hours the user has worked.
+ */
+const sendMealBreakReminder = (userToken, hoursWorked) => {
+    const title = 'Meal Break Required';
+    const body = `You've been working for ${hoursWorked} hours. Please remember to take your meal break.`;
+    const data = {
+        type: 'meal_break_reminder',
+        hoursWorked: String(hoursWorked),
+        requirementType: 'meal_break'
+    };
+    sendPushNotification(userToken, title, body, data);
+};
+
+
+module.exports = {
+    sendPaydayNotification,
+    sendMealBreakReminder
+};
+```javascript
+// src/routes/payroll.js (Updated with Push Notifications)
+const express = require('express');
+const { body } = require('express-validator');
+const db = require('../database/connection');
+const { authenticateToken, requireRole } = require('../middleware/auth');
+const { handleValidationErrors } = require('../utils/validation');
+const { sendPaydayNotification } = require('../services/pushNotificationService'); // Import the service
+
+const router = express.Router();
+
+// --- Validation Middleware --- (No changes here)
+const validatePayrollRun = [
+    body('payPeriodStart').isDate({ format: 'YYYY-MM-DD' }).withMessage('Pay period start date is required in YYYY-MM-DD format.'),
+    body('payPeriodEnd').isDate({ format: 'YYYY-MM-DD' }).withMessage('Pay period end date is required in YYYY-MM-DD format.'),
+    body('payDate').isDate({ format: 'YYYY-MM-DD' }).withMessage('Pay date is required in YYYY-MM-DD format.'),
+    body('employeeIds').optional().isArray().withMessage('employeeIds must be an array of user IDs.'),
+    body('employeeIds.*').optional().isUUID(),
+    handleValidationErrors
+];
+
+// --- Payroll API Routes ---
+
+/**
+ * POST /api/v1/payroll/run
+ * Runs the payroll process. Now sends a push notification on success.
+ * Access: Admin only
+ */
+router.post('/run', authenticateToken, requireRole(['admin']), validatePayrollRun, async (req, res) => {
+    const { payPeriodStart, payPeriodEnd, payDate, employeeIds } = req.body;
+    const companyId = req.user.company_id;
+    const processedBy = req.user.id;
+
+    const client = await db.pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const payrollResult = await client.query(`
+            INSERT INTO payrolls (company_id, pay_period_start, pay_period_end, pay_date, status, processed_by)
+            VALUES ($1, $2, $3, $4, 'processing', $5)
+            RETURNING id
+        `, [companyId, payPeriodStart, payPeriodEnd, payDate, processedBy]);
+        
+        const payrollId = payrollResult.rows[0].id;
+
+        // **MODIFICATION**: Fetch fcm_token along with other user details.
+        let employeeQuery = `
+            SELECT u.id, u.first_name, u.last_name, u.fcm_token, jr.hourly_rate, jr.overtime_rate
+            FROM users u
+            JOIN job_roles jr ON u.job_role_id = jr.id
+            WHERE u.company_id = $1 AND u.is_active = true
+        `;
+        const queryParams = [companyId];
+        if (employeeIds && employeeIds.length > 0) {
+            queryParams.push(employeeIds);
+            employeeQuery += ` AND u.id = ANY($2)`;
+        }
+
+        const employeesResult = await client.query(employeeQuery, queryParams);
+        const employeesToProcess = employeesResult.rows;
+
+        if (employeesToProcess.length === 0) throw new Error("No active employees found for this payroll run.");
+
+        let totalPayrollAmount = 0;
+
+        for (const employee of employeesToProcess) {
+            const punchesResult = await client.query(`
+                SELECT punch_type, punch_time FROM time_punches
+                WHERE user_id = $1 AND punch_time >= $2 AND punch_time <= $3
+                ORDER BY punch_time ASC
+            `, [employee.id, payPeriodStart, payPeriodEnd]);
+            
+            const punches = punchesResult.rows;
+            let totalHours = 0;
+            for (let i = 0; i < punches.length; i += 2) {
+                if (punches[i] && punches[i+1] && punches[i].punch_type === 'in' && punches[i+1].punch_type === 'out') {
+                    const inTime = new Date(punches[i].punch_time);
+                    const outTime = new Date(punches[i+1].punch_time);
+                    const hoursWorked = (outTime - inTime) / (1000 * 60 * 60);
+                    totalHours += hoursWorked;
+                }
+            }
+            
+            const regularHours = Math.min(totalHours, 80);
+            const overtimeHours = Math.max(0, totalHours - regularHours);
+            const regularPay = regularHours * parseFloat(employee.hourly_rate);
+            const overtimePay = overtimeHours * parseFloat(employee.overtime_rate);
+            const grossPay = regularPay + overtimePay;
+
+            const federalTax = grossPay * 0.15, stateTax = grossPay * 0.05, socialSecurity = grossPay * 0.062, medicare = grossPay * 0.0145;
+            const totalDeductions = federalTax + stateTax + socialSecurity + medicare;
+            const netPay = grossPay - totalDeductions;
+            
+            totalPayrollAmount += grossPay;
+
+            // **MODIFICATION**: Get the pay stub ID when creating it.
+            const payStubResult = await client.query(`
+                INSERT INTO pay_stubs (
+                    payroll_id, user_id, pay_period_start, pay_period_end, pay_date,
+                    regular_hours, overtime_hours, regular_pay, overtime_pay, gross_pay,
+                    federal_tax, state_tax, social_security, medicare, total_deductions, net_pay
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                RETURNING id
+            `, [
+                payrollId, employee.id, payPeriodStart, payPeriodEnd, payDate,
+                regularHours, overtimeHours, regularPay, overtimePay, grossPay,
+                federalTax, stateTax, socialSecurity, medicare, totalDeductions, netPay
+            ]);
+            
+            // **NEW**: Trigger push notification after creating the stub.
+            // A try/catch ensures that a failed notification doesn't roll back the entire payroll transaction.
+            try {
+                const payStubId = payStubResult.rows[0].id;
+                if (employee.fcm_token) {
+                    sendPaydayNotification(employee.fcm_token, payStubId, netPay);
+                }
+            } catch (notificationError) {
+                console.error(`Failed to send payday notification to user ${employee.id}:`, notificationError);
+            }
+        }
+
+        await client.query(`
+            UPDATE payrolls SET total_amount = $1, employee_count = $2, status = 'completed'
+            WHERE id = $3
+        `, [totalPayrollAmount, employeesToProcess.length, payrollId]);
+
+        await client.query('COMMIT');
+
+        res.status(201).json({
+            success: true,
+            data: {
+                payrollId: payrollId,
+                processedEmployees: employeesToProcess.length,
+                totalAmount: totalPayrollAmount,
+                status: 'completed'
+            }
+        });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Payroll run error:', error);
+        res.status(500).json({ success: false, error: { code: 'PAYROLL_RUN_FAILED', message: error.message || 'An internal error occurred during the payroll run.' } });
+    } finally {
+        client.release();
+    }
+});
+
+
+// Other payroll routes (GET /history, GET /:id) remain unchanged.
+// For brevity, they are omitted here but would be included in the full file.
+// ... (rest of the file is the same)
+router.get('/history', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+    try {
+        const { page = 1, limit = 20 } = req.query;
+        const offset = (page - 1) * limit;
+
+        const results = await db.query(`
+            SELECT id, pay_period_start, pay_period_end, pay_date, status, total_amount, employee_count, created_at
+            FROM payrolls
+            WHERE company_id = $1
+            ORDER BY pay_date DESC
+            LIMIT $2 OFFSET $3
+        `, [req.user.company_id, limit, offset]);
+
+        const totalResult = await db.query('SELECT COUNT(*) FROM payrolls WHERE company_id = $1', [req.user.company_id]);
+
+        res.json({
+            success: true,
+            data: {
+                payrolls: results.rows,
+                pagination: {
+                    currentPage: parseInt(page),
+                    totalPages: Math.ceil(totalResult.rows[0].count / limit),
+                    totalItems: parseInt(totalResult.rows[0].count),
+                    limit: parseInt(limit)
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Get payroll history error:', error);
+        res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch payroll history.' } });
+    }
+});
+
+router.get('/:id', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const payrollResult = await db.query(`
+            SELECT p.*, u.first_name as processed_by_first_name, u.last_name as processed_by_last_name
+            FROM payrolls p
+            LEFT JOIN users u ON p.processed_by = u.id
+            WHERE p.id = $1 AND p.company_id = $2
+        `, [id, req.user.company_id]);
+
+        if (payrollResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: { code: 'PAYROLL_NOT_FOUND', message: 'Payroll run not found.' } });
+        }
+
+        const stubsResult = await db.query(`
+            SELECT ps.id, ps.user_id, ps.gross_pay, ps.net_pay, u.first_name, u.last_name, u.email
+            FROM pay_stubs ps
+            JOIN users u ON ps.user_id = u.id
+            WHERE ps.payroll_id = $1
+            ORDER BY u.last_name, u.first_name
+        `, [id]);
+
+        const payroll = payrollResult.rows[0];
+        payroll.payStubs = stubsResult.rows;
+
+        res.json({ success: true, data: { payroll } });
+
+    } catch (error) {
+        console.error('Get payroll details error:', error);
+        res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch payroll details.' } });
+    }
+});
+
+
+module.exports = router;
