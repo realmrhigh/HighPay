@@ -1,0 +1,339 @@
+// src/routes/payroll.js
+const express = require('express');
+const { body } = require('express-validator');
+const db = require('../database/connection');
+const { authenticateToken, requireRole } = require('../middleware/auth');
+const { handleValidationErrors } = require('../utils/validation');
+
+const router = express.Router();
+
+// --- Validation Middleware ---
+const validatePayrollRun = [
+    body('payPeriodStart').isDate({ format: 'YYYY-MM-DD' }).withMessage('Pay period start date is required in YYYY-MM-DD format.'),
+    body('payPeriodEnd').isDate({ format: 'YYYY-MM-DD' }).withMessage('Pay period end date is required in YYYY-MM-DD format.'),
+    body('payDate').isDate({ format: 'YYYY-MM-DD' }).withMessage('Pay date is required in YYYY-MM-DD format.'),
+    body('employeeIds').optional().isArray().withMessage('employeeIds must be an array of user IDs.'),
+    body('employeeIds.*').optional().isUUID(),
+    handleValidationErrors
+];
+
+// --- Payroll API Routes ---
+
+/**
+ * POST /api/v1/payroll/run
+ * Runs the payroll process for a given period. This is a complex transactional endpoint.
+ * Access: Admin only
+ */
+router.post('/run', authenticateToken, requireRole(['admin']), validatePayrollRun, async (req, res) => {
+    const { payPeriodStart, payPeriodEnd, payDate, employeeIds } = req.body;
+    const companyId = req.user.company_id;
+    const processedBy = req.user.id;
+
+    // A single client connection from the pool is used for the entire transaction
+    const client = await db.pool.connect();
+
+    try {
+        await client.query('BEGIN'); // Start transaction
+
+        // 1. Create the main payroll record
+        const payrollResult = await client.query(`
+            INSERT INTO payrolls (company_id, pay_period_start, pay_period_end, pay_date, status, processed_by)
+            VALUES ($1, $2, $3, $4, 'processing', $5)
+            RETURNING id
+        `, [companyId, payPeriodStart, payPeriodEnd, payDate, processedBy]);
+        
+        const payrollId = payrollResult.rows[0].id;
+
+        // 2. Determine which employees to process
+        let employeeQuery = `
+            SELECT u.id, u.first_name, u.last_name, jr.hourly_rate, jr.overtime_rate
+            FROM users u
+            JOIN job_roles jr ON u.job_role_id = jr.id
+            WHERE u.company_id = $1 AND u.is_active = true
+        `;
+        const queryParams = [companyId];
+        if (employeeIds && employeeIds.length > 0) {
+            queryParams.push(employeeIds);
+            employeeQuery += ` AND u.id = ANY($2)`;
+        }
+
+        const employeesResult = await client.query(employeeQuery, queryParams);
+        const employeesToProcess = employeesResult.rows;
+
+        if (employeesToProcess.length === 0) {
+            throw new Error("No active employees found for this payroll run.");
+        }
+
+        let totalPayrollAmount = 0;
+
+        // 3. Process each employee
+        for (const employee of employeesToProcess) {
+            // Fetch time punches for this employee within the pay period
+            const punchesResult = await client.query(`
+                SELECT punch_type, punch_time FROM time_punches
+                WHERE user_id = $1 AND punch_time >= $2 AND punch_time <= $3
+                ORDER BY punch_time ASC
+            `, [employee.id, payPeriodStart, payPeriodEnd]);
+            
+            const punches = punchesResult.rows;
+            let totalHours = 0;
+            // Basic hours calculation (assumes perfect in/out pairs)
+            for (let i = 0; i < punches.length; i += 2) {
+                if (punches[i] && punches[i+1] && punches[i].punch_type === 'in' && punches[i+1].punch_type === 'out') {
+                    const inTime = new Date(punches[i].punch_time);
+                    const outTime = new Date(punches[i+1].punch_time);
+                    const hoursWorked = (outTime - inTime) / (1000 * 60 * 60);
+                    totalHours += hoursWorked;
+                }
+            }
+            
+            // NOTE: This is a simplified calculation. A real system would handle overtime thresholds (e.g., >40 hrs/week)
+            const regularHours = Math.min(totalHours, 80); // Assuming bi-weekly period
+            const overtimeHours = Math.max(0, totalHours - regularHours);
+
+            const regularPay = regularHours * parseFloat(employee.hourly_rate);
+            const overtimePay = overtimeHours * parseFloat(employee.overtime_rate);
+            const grossPay = regularPay + overtimePay;
+
+            // Simplified tax/deduction calculation (placeholders)
+            const federalTax = grossPay * 0.15;
+            const stateTax = grossPay * 0.05;
+            const socialSecurity = grossPay * 0.062;
+            const medicare = grossPay * 0.0145;
+            const totalDeductions = federalTax + stateTax + socialSecurity + medicare;
+            const netPay = grossPay - totalDeductions;
+            
+            totalPayrollAmount += grossPay;
+
+            // Create the pay stub record
+            await client.query(`
+                INSERT INTO pay_stubs (
+                    payroll_id, user_id, pay_period_start, pay_period_end, pay_date,
+                    regular_hours, overtime_hours, regular_pay, overtime_pay, gross_pay,
+                    federal_tax, state_tax, social_security, medicare, total_deductions, net_pay
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            `, [
+                payrollId, employee.id, payPeriodStart, payPeriodEnd, payDate,
+                regularHours, overtimeHours, regularPay, overtimePay, grossPay,
+                federalTax, stateTax, socialSecurity, medicare, totalDeductions, netPay
+            ]);
+        }
+
+        // 4. Update the main payroll record with final totals
+        await client.query(`
+            UPDATE payrolls SET total_amount = $1, employee_count = $2, status = 'completed'
+            WHERE id = $3
+        `, [totalPayrollAmount, employeesToProcess.length, payrollId]);
+
+        await client.query('COMMIT'); // Commit the transaction
+
+        res.status(201).json({
+            success: true,
+            data: {
+                payrollId: payrollId,
+                processedEmployees: employeesToProcess.length,
+                totalAmount: totalPayrollAmount,
+                status: 'completed'
+            }
+        });
+
+    } catch (error) {
+        await client.query('ROLLBACK'); // Rollback on any error
+        console.error('Payroll run error:', error);
+        res.status(500).json({ success: false, error: { code: 'PAYROLL_RUN_FAILED', message: error.message || 'An internal error occurred during the payroll run.' } });
+    } finally {
+        client.release(); // Release the client back to the pool
+    }
+});
+
+
+/**
+ * GET /api/v1/payroll/history
+ * Retrieves a paginated history of payroll runs for the company.
+ * Access: Admin, Manager
+ */
+router.get('/history', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+    try {
+        const { page = 1, limit = 20 } = req.query;
+        const offset = (page - 1) * limit;
+
+        const results = await db.query(`
+            SELECT id, pay_period_start, pay_period_end, pay_date, status, total_amount, employee_count, created_at
+            FROM payrolls
+            WHERE company_id = $1
+            ORDER BY pay_date DESC
+            LIMIT $2 OFFSET $3
+        `, [req.user.company_id, limit, offset]);
+
+        const totalResult = await db.query('SELECT COUNT(*) FROM payrolls WHERE company_id = $1', [req.user.company_id]);
+
+        res.json({
+            success: true,
+            data: {
+                payrolls: results.rows,
+                pagination: {
+                    currentPage: parseInt(page),
+                    totalPages: Math.ceil(totalResult.rows[0].count / limit),
+                    totalItems: parseInt(totalResult.rows[0].count),
+                    limit: parseInt(limit)
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Get payroll history error:', error);
+        res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch payroll history.' } });
+    }
+});
+
+/**
+ * GET /api/v1/payroll/:id
+ * Retrieves details for a specific payroll run, including all associated pay stubs.
+ * Access: Admin, Manager
+ */
+router.get('/:id', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Get payroll details
+        const payrollResult = await db.query(`
+            SELECT p.*, u.first_name as processed_by_first_name, u.last_name as processed_by_last_name
+            FROM payrolls p
+            LEFT JOIN users u ON p.processed_by = u.id
+            WHERE p.id = $1 AND p.company_id = $2
+        `, [id, req.user.company_id]);
+
+        if (payrollResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: { code: 'PAYROLL_NOT_FOUND', message: 'Payroll run not found.' } });
+        }
+
+        // Get associated pay stubs
+        const stubsResult = await db.query(`
+            SELECT ps.id, ps.user_id, ps.gross_pay, ps.net_pay, u.first_name, u.last_name, u.email
+            FROM pay_stubs ps
+            JOIN users u ON ps.user_id = u.id
+            WHERE ps.payroll_id = $1
+            ORDER BY u.last_name, u.first_name
+        `, [id]);
+
+        const payroll = payrollResult.rows[0];
+        payroll.payStubs = stubsResult.rows;
+
+        res.json({ success: true, data: { payroll } });
+
+    } catch (error) {
+        console.error('Get payroll details error:', error);
+        res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch payroll details.' } });
+    }
+});
+
+module.exports = router;
+```javascript
+// src/routes/payStubs.js
+const express = require('express');
+const db = require('../database/connection');
+const { authenticateToken, requireRole } = require('../middleware/auth');
+
+const router = express.Router();
+
+
+/**
+ * GET /api/v1/pay-stubs
+ * Retrieves a paginated list of pay stubs for the currently authenticated user.
+ * Access: Authenticated Users
+ */
+router.get('/', authenticateToken, async (req, res) => {
+    try {
+        const { page = 1, limit = 20 } = req.query;
+        const offset = (page - 1) * limit;
+
+        const results = await db.query(`
+            SELECT id, pay_period_start, pay_period_end, pay_date, gross_pay, total_deductions, net_pay
+            FROM pay_stubs
+            WHERE user_id = $1
+            ORDER BY pay_date DESC
+            LIMIT $2 OFFSET $3
+        `, [req.user.id, limit, offset]);
+        
+        const totalResult = await db.query('SELECT COUNT(*) FROM pay_stubs WHERE user_id = $1', [req.user.id]);
+
+        res.json({
+            success: true,
+            data: {
+                payStubs: results.rows,
+                pagination: {
+                    currentPage: parseInt(page),
+                    totalPages: Math.ceil(totalResult.rows[0].count / limit),
+                    totalItems: parseInt(totalResult.rows[0].count),
+                    limit: parseInt(limit)
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Get my pay stubs error:', error);
+        res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch your pay stubs.' } });
+    }
+});
+
+
+/**
+ * GET /api/v1/pay-stubs/:id
+ * Retrieves details for a specific pay stub.
+ * Access: The owner of the pay stub or an Admin/Manager.
+ */
+router.get('/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await db.query('SELECT * FROM pay_stubs WHERE id = $1', [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: { code: 'PAY_STUB_NOT_FOUND', message: 'Pay stub not found.' } });
+        }
+
+        const payStub = result.rows[0];
+
+        // Security check: User must be owner or admin/manager of the same company.
+        const isOwner = req.user.id === payStub.user_id;
+        const isAdminOrManager = ['admin', 'manager'].includes(req.user.role_type);
+        
+        if (!isOwner && !isAdminOrManager) {
+            return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You are not authorized to view this pay stub.' } });
+        }
+        
+        // Final check to ensure admin/manager is in the same company
+        if (isAdminOrManager && !isOwner) {
+            const ownerResult = await db.query('SELECT company_id FROM users WHERE id = $1', [payStub.user_id]);
+            if (ownerResult.rows[0].company_id !== req.user.company_id) {
+                return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You are not authorized to view this pay stub.' } });
+            }
+        }
+
+        res.json({ success: true, data: { payStub } });
+
+    } catch (error) {
+        console.error('Get pay stub details error:', error);
+        res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch pay stub details.' } });
+    }
+});
+
+
+/**
+ * GET /api/v1/pay-stubs/:id/pdf
+ * Placeholder for downloading a PDF version of a pay stub.
+ * Access: The owner of the pay stub or an Admin/Manager.
+ */
+router.get('/:id/pdf', authenticateToken, async (req, res) => {
+    // This is a placeholder. A real implementation would involve a PDF generation library (e.g., PDFKit, Puppeteer)
+    // and would perform the same security checks as the GET /:id endpoint.
+    res.json({
+        success: false,
+        data: {
+            message: "PDF generation is not yet implemented for this MVP.",
+            payStubId: req.params.id
+        }
+    });
+});
+
+
+module.exports = router;
