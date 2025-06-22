@@ -678,3 +678,74 @@ This project is licensed under the ISC License - see the [LICENSE](LICENSE) file
 
 For support and questions about the HighPay backend system, please contact the development team or create an issue in the project repository.
 
+## 🎨 React Dashboard
+
+HighPay now includes a beautiful, modern React dashboard that provides a complete user interface for the payroll management system.
+
+### 🚀 Dashboard Features
+
+- **Modern UI**: Built with Material-UI for a professional, responsive design
+- **Real-time Updates**: Live WebSocket integration for instant notifications
+- **Role-based Access**: Different interfaces for Admin, Manager, and Employee roles
+- **Interactive Analytics**: Charts and graphs powered by Chart.js
+- **Time Tracking**: Built-in clock in/out functionality with GPS support
+- **Mobile Responsive**: Works perfectly on desktop, tablet, and mobile devices
+
+### 🖥️ Accessing the Dashboard
+
+1. **Start the Backend** (if not already running):
+   ```bash
+   npm start
+   # Backend runs on http://localhost:3000
+   ```
+
+2. **Start the Frontend Dashboard**:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   # Dashboard available at http://localhost:3001
+   ```
+
+3. **Login with Demo Credentials**:
+   - **Admin**: admin@company.com / admin123
+   - **Manager**: manager@company.com / manager123
+   - **Employee**: employee@company.com / employee123
+
+### 📱 Dashboard Screenshots
+
+The dashboard includes:
+- **Main Dashboard**: Real-time metrics, clock in/out, activity feed
+- **Employee Management**: Team overview and management tools (Admin/Manager)
+- **Time Tracking**: Comprehensive time tracking with GPS support
+- **Analytics**: Visual reports and business insights
+- **Real-time Notifications**: Live updates via WebSocket
+
+### 🛠️ Frontend Technology Stack
+
+- **React 18** with modern hooks and functional components
+- **Material-UI (MUI)** for professional UI components
+- **Vite** for lightning-fast development and builds
+- **React Query** for efficient server state management
+- **Chart.js** for interactive data visualization
+- **Socket.IO Client** for real-time communication
+- **React Router** for seamless navigation
+- **Axios** for API communication
+
+### 🔄 Development Workflow
+
+```bash
+# Terminal 1: Start Backend
+npm start
+
+# Terminal 2: Start Frontend  
+cd frontend
+npm run dev
+```
+
+Both services will run simultaneously:
+- **Backend API**: http://localhost:3000
+- **Frontend Dashboard**: http://localhost:3001
+
+The frontend automatically proxies API requests to the backend, and WebSocket connections provide real-time updates across all dashboard users.
+
