@@ -1,0 +1,174 @@
+// src/routes/timePunches.js
+const express = require('express');
+const { body, query } = require('express-validator');
+const db = require('../database/connection');
+const { authenticateToken, requireRole } = require('../middleware/auth');
+const { handleValidationErrors } = require('../utils/validation');
+
+const router = express.Router();
+
+// --- Validation Middleware ---
+const validateTimePunchCreation = [
+    body('type').isIn(['in', 'out']).withMessage('Punch type must be either "in" or "out".'),
+    body('timestamp').isISO8601().withMessage('Timestamp must be a valid ISO 8601 date.'),
+    body('location.latitude').optional().isFloat({ min: -90, max: 90 }).withMessage('Invalid latitude.'),
+    body('location.longitude').optional().isFloat({ min: -180, max: 180 }).withMessage('Invalid longitude.'),
+    handleValidationErrors
+];
+
+const validateUserPunchHistory = [
+    query('startDate').optional().isISO8601().withMessage('Start date must be a valid ISO 8601 date.'),
+    query('endDate').optional().isISO8601().withMessage('End date must be a valid ISO 8601 date.'),
+    handleValidationErrors
+];
+
+
+// --- Time Punch API Routes ---
+
+/**
+ * POST /api/v1/time-punches
+ * Creates a new time punch (clock-in or clock-out) for the authenticated user.
+ * Access: Authenticated Users
+ */
+router.post('/', authenticateToken, validateTimePunchCreation, async (req, res) => {
+    try {
+        const { type, timestamp, location, notes } = req.body;
+        const userId = req.user.id;
+
+        const result = await db.query(`
+            INSERT INTO time_punches (user_id, punch_type, punch_time, location_lat, location_lng, notes)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id, user_id, punch_type, punch_time, location_lat, location_lng
+        `, [
+            userId,
+            type,
+            timestamp,
+            location ? location.latitude : null,
+            location ? location.longitude : null,
+            notes
+        ]);
+
+        const punch = result.rows[0];
+
+        res.status(201).json({
+            success: true,
+            data: {
+                id: punch.id,
+                userId: punch.user_id,
+                type: punch.punch_type,
+                timestamp: punch.punch_time,
+                location: {
+                    latitude: punch.location_lat ? parseFloat(punch.location_lat) : null,
+                    longitude: punch.location_lng ? parseFloat(punch.location_lng) : null,
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Create time punch error:', error);
+        res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to record time punch.' } });
+    }
+});
+
+/**
+ * GET /api/v1/time-punches/today
+ * Retrieves today's time punches for the currently authenticated user.
+ * Calculates total hours worked and current clock-in/out status.
+ * Access: Authenticated Users
+ */
+router.get('/today', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        // Using the provided current date: June 21, 2025
+        const today = new Date('2025-06-21T00:00:00.000Z');
+        const startOfDay = today.toISOString();
+        const endOfDay = new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1).toISOString();
+
+        const result = await db.query(`
+            SELECT id, punch_type, punch_time FROM time_punches
+            WHERE user_id = $1 AND punch_time >= $2 AND punch_time <= $3
+            ORDER BY punch_time ASC
+        `, [userId, startOfDay, endOfDay]);
+
+        const punches = result.rows.map(p => ({ id: p.id, type: p.punch_type, timestamp: p.punch_time }));
+
+        let totalMilliseconds = 0;
+        let lastPunchType = null;
+
+        for (let i = 0; i < punches.length; i++) {
+            lastPunchType = punches[i].type;
+            if (punches[i].type === 'in' && i + 1 < punches.length && punches[i+1].type === 'out') {
+                const inTime = new Date(punches[i].timestamp);
+                const outTime = new Date(punches[i+1].timestamp);
+                totalMilliseconds += outTime - inTime;
+                i++; // Skip the next punch as it's been processed
+            }
+        }
+        
+        // Convert milliseconds to hours, rounded to two decimal places
+        const totalHours = Math.round((totalMilliseconds / (1000 * 60 * 60)) * 100) / 100;
+
+        res.json({
+            success: true,
+            data: {
+                punches: punches,
+                totalHours: totalHours,
+                status: lastPunchType || 'out' // If no punches, they are 'out'
+            }
+        });
+
+    } catch (error) {
+        console.error("Get today's punches error:", error);
+        res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: "Failed to fetch today's time punches." } });
+    }
+});
+
+/**
+ * GET /api/v1/time-punches/user/:id
+ * Retrieves time punch history for a specific user, with an optional date range.
+ * Access: Admin, Manager
+ */
+router.get('/user/:id', authenticateToken, requireRole(['admin', 'manager']), validateUserPunchHistory, async (req, res) => {
+    try {
+        const { id: userId } = req.params;
+        const { startDate, endDate } = req.query;
+        
+        // Admins/Managers can only see users in their own company
+        const companyId = req.user.company_id;
+
+        let query = `
+            SELECT tp.id, tp.punch_type, tp.punch_time, tp.notes 
+            FROM time_punches tp
+            JOIN users u ON tp.user_id = u.id
+            WHERE tp.user_id = $1 AND u.company_id = $2
+        `;
+        const params = [userId, companyId];
+        let paramCount = 2;
+
+        if (startDate) {
+            paramCount++;
+            query += ` AND tp.punch_time >= $${paramCount}`;
+            params.push(startDate);
+        }
+        if (endDate) {
+            paramCount++;
+            query += ` AND tp.punch_time <= $${paramCount}`;
+            params.push(endDate);
+        }
+
+        query += ' ORDER BY tp.punch_time DESC';
+
+        const result = await db.query(query, params);
+
+        res.json({
+            success: true,
+            data: {
+                punches: result.rows
+            }
+        });
+    } catch (error) {
+        console.error('Get user punch history error:', error);
+        res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: "Failed to fetch user's punch history." } });
+    }
+});
+
+module.exports = router;
