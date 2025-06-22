@@ -1,0 +1,285 @@
+// src/middleware/auth.js
+const jwt = require('jsonwebtoken');
+const db = require('../database/connection');
+
+/**
+ * Middleware to authenticate a user via JWT.
+ * It verifies the token, checks if the user exists and is active,
+ * and attaches the full user object to the request.
+ */
+const authenticateToken = async (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Expects "Bearer TOKEN"
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      error: {
+        code: 'NO_TOKEN',
+        message: 'Access token is required for authentication.',
+      }
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Ensure the user associated with the token still exists and is active.
+    const userResult = await db.query(`
+      SELECT u.*, c.name as company_name, jr.title as job_title 
+      FROM users u
+      LEFT JOIN companies c ON u.company_id = c.id
+      LEFT JOIN job_roles jr ON u.job_role_id = jr.id
+      WHERE u.id = $1 AND u.is_active = true
+    `, [decoded.userId]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'INVALID_TOKEN',
+          message: 'User not found or has been deactivated.',
+        }
+      });
+    }
+
+    // Attach user data to the request object for downstream handlers
+    req.user = userResult.rows[0];
+    next();
+  } catch (error) {
+    // Catches errors from jwt.verify (e.g., expired token)
+    return res.status(403).json({
+      success: false,
+      error: {
+        code: 'INVALID_TOKEN',
+        message: 'Token is invalid or has expired.',
+      }
+    });
+  }
+};
+
+/**
+ * Middleware factory to restrict endpoint access to specific roles.
+ * @param {string[]} roles - An array of roles that are allowed access.
+ */
+const requireRole = (roles) => {
+  return (req, res, next) => {
+    // This middleware must run after authenticateToken
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication is required to perform this action.',
+        }
+      });
+    }
+
+    if (!roles.includes(req.user.role_type)) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'You do not have sufficient permissions to access this resource.',
+          details: { requiredRoles: roles, userRole: req.user.role_type }
+        }
+      });
+    }
+
+    next();
+  };
+};
+
+module.exports = {
+  authenticateToken,
+  requireRole
+};
+
+// src/utils/jwt.js
+const jwt = require('jsonwebtoken');
+
+/**
+ * Generates a standard access token for a user.
+ * @param {string} userId - The user's UUID.
+ * @param {string} email - The user's email address.
+ * @param {string} roleType - The user's role ('admin', 'manager', 'employee').
+ * @returns {string} The generated JWT.
+ */
+const generateToken = (userId, email, roleType) => {
+  return jwt.sign(
+    { 
+      userId, 
+      email, 
+      roleType 
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+  );
+};
+
+/**
+ * Generates a refresh token.
+ * Note: A separate, more robust refresh token strategy would be needed for a full implementation.
+ * @param {string} userId - The user's UUID.
+ * @returns {string} The generated JWT.
+ */
+const generateRefreshToken = (userId) => {
+  return jwt.sign(
+    { userId },
+    process.env.JWT_SECRET + '_refresh', // Using a different secret for refresh tokens is a good practice
+    { expiresIn: '30d' }
+  );
+};
+
+module.exports = {
+  generateToken,
+  generateRefreshToken
+};
+
+// src/routes/auth.js
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const db = require('../database/connection');
+const { generateToken } = require('../utils/jwt');
+const { validateRegistration, validateLogin } = require('../utils/validation');
+const { authenticateToken } = require('../middleware/auth');
+
+const router = express.Router();
+
+// POST /api/v1/auth/register - Register a new user
+router.post('/register', validateRegistration, async (req, res) => {
+  try {
+    const { email, password, firstName, lastName, companyId, jobRoleId } = req.body;
+
+    // 1. Check if user already exists
+    const existingUser = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ // 409 Conflict is more specific for existing resources
+        success: false,
+        error: {
+          code: 'EMAIL_EXISTS',
+          message: 'An account with this email address already exists.',
+        }
+      });
+    }
+
+    // 2. Hash password
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // 3. Create user (defaults to 'employee' role for this endpoint)
+    const result = await db.query(`
+      INSERT INTO users (email, password_hash, first_name, last_name, company_id, job_role_id, role_type)
+      VALUES ($1, $2, $3, $4, $5, $6, 'employee')
+      RETURNING id, email, first_name, last_name, role_type, created_at
+    `, [email, passwordHash, firstName, lastName, companyId, jobRoleId]);
+
+    const user = result.rows[0];
+    const token = generateToken(user.id, user.email, user.role_type);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          role: user.role_type,
+          companyId,
+          createdAt: user.created_at
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'SERVER_ERROR',
+        message: 'An unexpected error occurred during registration.',
+      }
+    });
+  }
+});
+
+// POST /api/v1/auth/login - Log a user in
+router.post('/login', validateLogin, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // 1. Find the user by email
+    const result = await db.query(`
+      SELECT u.*, c.name as company_name, jr.title as job_title 
+      FROM users u
+      LEFT JOIN companies c ON u.company_id = c.id
+      LEFT JOIN job_roles jr ON u.job_role_id = jr.id
+      WHERE u.email = $1 AND u.is_active = true
+    `, [email]);
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Invalid email or password.',
+        }
+      });
+    }
+    const user = result.rows[0];
+
+    // 2. Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    if (!isValidPassword) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Invalid email or password.',
+        }
+      });
+    }
+
+    // 3. Generate token and send response
+    const token = generateToken(user.id, user.email, user.role_type);
+
+    res.json({
+      success: true,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          role: user.role_type,
+          companyId: user.company_id,
+          companyName: user.company_name,
+          jobTitle: user.job_title
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'SERVER_ERROR',
+        message: 'An unexpected error occurred during login.',
+      }
+    });
+  }
+});
+
+// GET /api/v1/auth/me - Get the currently authenticated user's profile
+router.get('/me', authenticateToken, (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      // The user object is already enriched by the authenticateToken middleware
+      user: req.user
+    }
+  });
+});
+
+module.exports = router;
