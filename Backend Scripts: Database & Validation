@@ -1,0 +1,200 @@
+// src/database/connection.js
+const { Pool } = require('pg');
+require('dotenv').config();
+
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
+
+// Test connection
+pool.on('connect', () => {
+  console.log('🗄️  Connected to PostgreSQL database');
+});
+
+pool.on('error', (err) => {
+  console.error('💥 PostgreSQL connection error:', err);
+  process.exit(-1);
+});
+
+module.exports = {
+  query: (text, params) => pool.query(text, params),
+  pool
+};
+
+// src/database/migrate.js
+const fs = require('fs');
+const path = require('path');
+const db = require('./connection');
+
+async function runMigrations() {
+  try {
+    console.log('🚀 Running database migrations...');
+    
+    // Read and execute schema.sql
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    const schema = fs.readFileSync(schemaPath, 'utf8');
+    
+    await db.query(schema);
+    
+    console.log('✅ Database migrations completed successfully!');
+    // We shouldn't exit the process if this is part of a larger app startup
+  } catch (error) {
+    console.error('💥 Migration failed:', error);
+    process.exit(1); // Exit with error on migration failure
+  }
+}
+
+// Ensure the pool is closed after the script runs
+runMigrations().finally(() => {
+    db.pool.end();
+});
+
+
+// src/database/seed.js
+const bcrypt = require('bcryptjs');
+const db = require('./connection');
+
+async function seedDatabase() {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    console.log('🌱 Seeding database with initial data...');
+
+    // Create a demo company
+    const companyResult = await client.query(`
+      INSERT INTO companies (name, address, phone, email, tax_id)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id
+    `, [
+      'Demo Company Inc.',
+      '123 Business St, San Francisco, CA 94105',
+      '(555) 123-4567',
+      'admin@democompany.com',
+      '12-3456789'
+    ]);
+
+    const companyId = companyResult.rows[0].id;
+
+    // Create job roles
+    const jobRoleResults = await client.query(`
+      INSERT INTO job_roles (company_id, title, hourly_rate, overtime_rate, description)
+      VALUES 
+        ($1, 'Manager', 25.00, 37.50, 'Team management and operations'),
+        ($1, 'Full-time Employee', 18.00, 27.00, 'Standard full-time position'),
+        ($1, 'Part-time Employee', 15.00, 22.50, 'Part-time hourly position')
+      RETURNING id, title
+    `, [companyId]);
+
+    const managerRoleId = jobRoleResults.rows.find(r => r.title === 'Manager').id;
+    const employeeRoleId = jobRoleResults.rows.find(r => r.title === 'Full-time Employee').id;
+
+    // Create admin user
+    const adminPasswordHash = await bcrypt.hash('admin123', 12);
+    await client.query(`
+      INSERT INTO users (company_id, job_role_id, email, password_hash, first_name, last_name, role_type, hire_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [
+      companyId,
+      managerRoleId,
+      'admin@democompany.com',
+      adminPasswordHash,
+      'Admin',
+      'User',
+      'admin',
+      new Date().toISOString().split('T')[0]
+    ]);
+
+    // Create demo employees
+    const demoEmployees = [
+      { firstName: 'John', lastName: 'Doe', email: 'john.doe@democompany.com' },
+      { firstName: 'Jane', lastName: 'Smith', email: 'jane.smith@democompany.com' },
+      { firstName: 'Mike', lastName: 'Johnson', email: 'mike.johnson@democompany.com' }
+    ];
+
+    for (const employee of demoEmployees) {
+      const passwordHash = await bcrypt.hash('employee123', 12);
+      await client.query(`
+        INSERT INTO users (company_id, job_role_id, email, password_hash, first_name, last_name, role_type, hire_date)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [
+        companyId,
+        employeeRoleId,
+        employee.email,
+        passwordHash,
+        employee.firstName,
+        employee.lastName,
+        'employee',
+        new Date().toISOString().split('T')[0]
+      ]);
+    }
+
+    await client.query('COMMIT');
+    console.log('✅ Database seeded successfully!');
+    console.log('📧 Admin login: admin@democompany.com / admin123');
+    console.log('📧 Employee login: john.doe@democompany.com / employee123');
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('💥 Seeding failed:', error);
+  } finally {
+    client.release();
+  }
+}
+
+// Ensure the pool is closed after the script runs
+seedDatabase().finally(() => {
+    db.pool.end();
+});
+
+// src/utils/validation.js
+const { body, validationResult } = require('express-validator');
+
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid input data',
+        details: errors.array()
+      }
+    });
+  }
+  next();
+};
+
+const validateRegistration = [
+  body('email').isEmail().normalizeEmail(),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('firstName').trim().isLength({ min: 1 }).withMessage('First name is required'),
+  body('lastName').trim().isLength({ min: 1 }).withMessage('Last name is required'),
+  handleValidationErrors
+];
+
+const validateLogin = [
+  body('email').isEmail().normalizeEmail(),
+  body('password').exists().withMessage('Password is required'),
+  handleValidationErrors
+];
+
+const validateTimePunch = [
+  body('type').isIn(['in', 'out']).withMessage('Type must be "in" or "out"'),
+  body('timestamp').isISO8601().withMessage('Valid timestamp required'),
+  handleValidationErrors
+];
+
+module.exports = {
+  handleValidationErrors,
+  validateRegistration,
+  validateLogin,
+  validateTimePunch
+};
