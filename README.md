@@ -243,6 +243,174 @@ src/
 3. **Medium Term**: Implement comprehensive testing and API documentation
 4. **Long Term**: Add advanced features like real-time notifications and AI integration
 
+## 🚀 New Features
+
+### 📚 Interactive API Documentation
+- **Swagger/OpenAPI 3.0** integration with beautiful UI
+- Comprehensive API documentation with request/response examples
+- Interactive testing directly from the docs
+- Access at: `http://localhost:3000/api-docs`
+
+### 📄 PDF Generation
+- **Professional pay stub PDFs** with company branding
+- **Payroll report PDFs** for management
+- **Time tracking report PDFs** for detailed analysis
+- Automatic PDF generation with proper formatting
+- Download endpoints for all report types
+
+### ⚡ Real-time Features (WebSocket)
+- **Live time punch notifications** for instant updates
+- **Real-time payroll notifications** when pay stubs are ready
+- **Management dashboard** with live employee activity
+- **Room-based messaging** (general, management, admin)
+- **Connection statistics** and monitoring
+- WebSocket endpoint: `ws://localhost:3000/ws`
+
+### 🎯 Enhanced API Endpoints
+
+#### New Report Endpoints
+- `GET /api/v1/reports/paystub/:id/pdf` - Generate pay stub PDF
+- `GET /api/v1/reports/payroll/:id/pdf` - Generate payroll report PDF  
+- `GET /api/v1/reports/timetracking/:userId/pdf` - Generate time tracking PDF
+- `GET /api/v1/reports/websocket/stats` - WebSocket connection statistics
+
+### 🔧 WebSocket Events
+- `connection` - Welcome message on connect
+- `time_punch_created` - New time punch notifications
+- `time_punch_update` - Real-time time punch updates
+- `payroll_update` - Payroll processing notifications
+- `new_pay_stub` - New pay stub available notifications
+- `system_notification` - System-wide announcements
+
+### 🛠️ Development Tools
+- **WebSocket test client** (`websocket-test.html`) for testing real-time features
+- Enhanced error handling and logging
+- Rate limiting for PDF generation endpoints
+- Comprehensive input validation
+
+## 📖 API Documentation
+
+### Swagger UI
+Access the interactive API documentation at:
+```
+http://localhost:3000/api-docs
+```
+
+The documentation includes:
+- Complete endpoint reference
+- Request/response schemas
+- Authentication requirements
+- Example requests and responses
+- Try-it-out functionality
+
+### PDF Generation Examples
+
+#### Generate Pay Stub PDF
+```bash
+curl -X GET "http://localhost:3000/api/v1/reports/paystub/123/pdf" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  --output paystub.pdf
+```
+
+#### Generate Time Tracking Report
+```bash
+curl -X GET "http://localhost:3000/api/v1/reports/timetracking/456/pdf?startDate=2025-06-01&endDate=2025-06-30" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  --output timetracking-report.pdf
+```
+
+### WebSocket Connection
+
+#### JavaScript Client
+```javascript
+// Connect to WebSocket with JWT token
+const ws = new WebSocket('ws://localhost:3000/ws?token=YOUR_JWT_TOKEN');
+
+// Handle messages
+ws.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    console.log('Received:', data);
+};
+
+// Send time punch update
+ws.send(JSON.stringify({
+    type: 'time_punch_update',
+    data: {
+        type: 'clock_in',
+        timestamp: new Date().toISOString()
+    }
+}));
+```
+
+#### Available Message Types
+- `ping/pong` - Keep-alive messages
+- `join_room` - Join a specific room
+- `leave_room` - Leave a specific room
+- `time_punch_update` - Send time punch updates
+
+## 🔄 Real-time Notifications
+
+### For Employees
+- Instant confirmation when clocking in/out
+- Notifications when new pay stubs are available
+- System announcements and updates
+
+### For Managers
+- Real-time employee time punch monitoring
+- Live dashboard updates
+- Payroll processing notifications
+
+### For Admins
+- Complete system monitoring
+- WebSocket connection statistics
+- All employee and system notifications
+
+## 📊 Monitoring & Analytics
+
+### WebSocket Statistics
+Access real-time connection statistics:
+```bash
+curl -X GET "http://localhost:3000/api/v1/reports/websocket/stats" \
+  -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
+```
+
+Response includes:
+- Total active connections
+- Unique connected users
+- Active rooms
+- Room-specific user counts
+
+## 🎨 Testing
+
+### WebSocket Testing
+1. Open `websocket-test.html` in your browser
+2. Enter a valid JWT token
+3. Click "Connect" to establish WebSocket connection
+4. Test various message types and real-time features
+
+### PDF Testing
+1. Create test data (users, time punches, pay stubs)
+2. Call PDF generation endpoints
+3. Verify PDF formatting and content
+4. Test access control for different user roles
+
+## 🚀 Next Steps
+
+The system now includes:
+✅ **Interactive API Documentation** with Swagger UI
+✅ **Professional PDF Generation** for all reports
+✅ **Real-time WebSocket Features** for live updates
+✅ **Enhanced Security** and rate limiting
+✅ **Comprehensive Testing Tools**
+
+### Recommended Next Features:
+- 📈 **Analytics Dashboard** with charts and metrics
+- 🔄 **CI/CD Pipeline** with GitHub Actions
+- 📧 **Email Templates** for notifications
+- 🎯 **Advanced Reporting** with filters and exports
+- 🔍 **Audit Logging** for compliance
+- 📱 **Mobile App Integration** via API
+
 ## License
 
 This project is licensed under the ISC License - see the [LICENSE](LICENSE) file for details.

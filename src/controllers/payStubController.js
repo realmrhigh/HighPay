@@ -3,6 +3,8 @@ const User = require('../models/User');
 const { createResponse, createErrorResponse } = require('../utils/helpers');
 const logger = require('../utils/logger');
 const { PAGINATION_DEFAULTS } = require('../utils/constants');
+const pdfService = require('../services/pdfService');
+const Company = require('../models/Company');
 
 class PayStubController {
   /**
@@ -133,6 +135,52 @@ class PayStubController {
     } catch (error) {
       logger.error('Error downloading pay stub PDF:', error);
       res.status(500).json(createErrorResponse('Failed to download pay stub', 'SERVER_ERROR'));
+    }
+  }
+
+  /**
+   * Generate pay stub PDF
+   */
+  async generatePayStubPDF(req, res) {
+    try {
+      const { id } = req.params;
+      const userId = req.user.userId;
+      const userRole = req.user.role;
+
+      // Get pay stub data
+      const payStub = await PayStub.findById(id);
+      if (!payStub) {
+        return res.status(404).json({ error: 'Pay stub not found' });
+      }
+
+      // Check authorization
+      if (userRole !== 'admin' && userRole !== 'manager' && payStub.userId !== userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Get user and company data
+      const userData = await User.findById(payStub.userId);
+      const companyData = await Company.findById(userData.companyId) || {
+        name: 'HighPay Company',
+        address: '123 Business St, City, State 12345',
+        phone: '(555) 123-4567'
+      };
+
+      // Generate PDF
+      const pdfBuffer = await pdfService.generatePayStubPDF(payStub, userData, companyData);
+
+      // Set response headers
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="paystub-${payStub.id}-${Date.now()}.pdf"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+
+      // Send PDF
+      res.send(pdfBuffer);
+
+      logger.info(`Pay stub PDF generated for user ${userId}, pay stub ${id}`);
+    } catch (error) {
+      logger.error('Error generating pay stub PDF:', error);
+      res.status(500).json({ error: 'Failed to generate pay stub PDF' });
     }
   }
 

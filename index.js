@@ -10,6 +10,8 @@ const { loadEnvironment } = require('./src/config/environment');
 const { connectDatabase } = require('./src/config/database');
 const logger = require('./src/utils/logger');
 const { createResponse } = require('./src/utils/helpers');
+const { serve, setup } = require('./src/config/swagger');
+const websocketService = require('./src/services/websocketService');
 
 // Import middleware
 const { errorHandler } = require('./src/middleware/errorHandler');
@@ -19,6 +21,7 @@ const { applyRateLimit } = require('./src/middleware/rateLimiter');
 const authRoutes = require('./src/routes/authRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const jobRoleRoutes = require('./src/routes/jobRoleRoutes');
+const reportRoutes = require('./src/routes/reportRoutes');
 // TODO: Import other routes as they are created
 
 // Load and validate environment
@@ -123,11 +126,16 @@ app.get('/', (req, res) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/job-roles', jobRoleRoutes);
+app.use('/api/v1/time-tracking', timeTrackingRoutes);
+app.use('/api/v1/reports', reportRoutes);
 // TODO: Add other route imports as they are created
 // app.use('/api/v1/companies', companyRoutes);
 // app.use('/api/v1/time-tracking', timeTrackingRoutes);
 // app.use('/api/v1/payroll', payrollRoutes);
 // app.use('/api/v1/pay-stubs', payStubRoutes);
+
+// API Documentation
+app.use('/api-docs', serve, setup);
 
 // 404 handler for undefined routes
 app.use('*', (req, res) => {
@@ -164,7 +172,12 @@ async function startServer() {
         port,
         timestamp: new Date().toISOString()
       });
+      logger.info(`📚 API Documentation available at http://localhost:${port}/api-docs`);
+      logger.info(`🔌 WebSocket endpoint: ws://localhost:${port}/ws`);
     });
+
+    // Initialize WebSocket service
+    websocketService.initialize(server);
 
     // Graceful shutdown handling
     const gracefulShutdown = async (signal) => {

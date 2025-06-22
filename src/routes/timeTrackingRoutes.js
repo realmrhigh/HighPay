@@ -19,9 +19,49 @@ const router = express.Router();
 router.use(applyRateLimit('timeTracking'));
 
 /**
- * @route   POST /api/v1/time-tracking/punch
- * @desc    Create a new time punch (clock in/out)
- * @access  All authenticated users
+ * @swagger
+ * /api/v1/time-tracking/punch:
+ *   post:
+ *     summary: Create a new time punch (clock in/out)
+ *     tags: [Time Tracking]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - type
+ *             properties:
+ *               type:
+ *                 type: string
+ *                 enum: [clock_in, clock_out, break_start, break_end]
+ *                 description: Type of time punch
+ *               location:
+ *                 type: object
+ *                 properties:
+ *                   latitude:
+ *                     type: number
+ *                   longitude:
+ *                     type: number
+ *                   address:
+ *                     type: string
+ *               notes:
+ *                 type: string
+ *                 description: Optional notes
+ *     responses:
+ *       201:
+ *         description: Time punch created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TimePunch'
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
  */
 router.post('/punch',
   authenticateToken,
@@ -30,9 +70,24 @@ router.post('/punch',
 );
 
 /**
- * @route   GET /api/v1/time-tracking/today
- * @desc    Get today's time punches for current user
- * @access  All authenticated users
+ * @swagger
+ * /api/v1/time-tracking/today:
+ *   get:
+ *     summary: Get today's time punches for current user
+ *     tags: [Time Tracking]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Today's time punches retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/TimePunch'
+ *       401:
+ *         description: Unauthorized
  */
 router.get('/today',
   authenticateToken,

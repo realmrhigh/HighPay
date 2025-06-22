@@ -2,6 +2,7 @@ const TimePunch = require('../models/TimePunch');
 const { createResponse, createErrorResponse } = require('../utils/helpers');
 const logger = require('../utils/logger');
 const pushNotificationService = require('../services/pushNotificationService');
+const websocketService = require('../services/websocketService');
 
 class TimeTrackingController {
   /**
@@ -52,6 +53,9 @@ class TimeTrackingController {
         logger.warn('Failed to send punch notification:', notificationError);
         // Don't fail the request if notification fails
       }
+
+      // Send real-time notification
+      websocketService.notifyTimePunch(userId, newPunch);
 
       logger.info(`Time punch recorded: ${type}`, {
         userId,
