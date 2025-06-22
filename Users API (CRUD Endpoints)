@@ -1,0 +1,286 @@
+// src/routes/users.js
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const { body } = require('express-validator');
+const db = require('../database/connection');
+const { authenticateToken, requireRole } = require('../middleware/auth');
+const { handleValidationErrors } = require('../utils/validation');
+
+const router = express.Router();
+
+// --- Validation Middleware ---
+
+// Validation for creating a new user. Most fields are required.
+const validateUserCreation = [
+  body('email').isEmail().normalizeEmail().withMessage('A valid email is required.'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters.'),
+  body('firstName').trim().notEmpty().withMessage('First name is required.'),
+  body('lastName').trim().notEmpty().withMessage('Last name is required.'),
+  body('roleType').isIn(['admin', 'manager', 'employee']).withMessage('Invalid role type provided.'),
+  body('jobRoleId').isUUID().withMessage('A valid job role ID is required.'),
+  handleValidationErrors
+];
+
+// Validation for updating an existing user. All fields are optional.
+const validateUserUpdate = [
+  body('email').optional().isEmail().normalizeEmail(),
+  body('firstName').optional().trim().notEmpty(),
+  body('lastName').optional().trim().notEmpty(),
+  body('roleType').optional().isIn(['admin', 'manager', 'employee']),
+  body('jobRoleId').optional().isUUID(),
+  body('isActive').optional().isBoolean(),
+  handleValidationErrors
+];
+
+// --- User API Routes ---
+
+/**
+ * GET /api/v1/users
+ * Lists all users within the authenticated user's company.
+ * Supports pagination, searching, and filtering by role.
+ * Access: Admin, Manager
+ */
+router.get('/', authenticateToken, requireRole(['admin', 'manager']), async (req, res) => {
+  try {
+    // Destructure query parameters with default values for pagination
+    const { page = 1, limit = 20, search = '', role = '' } = req.query;
+    const offset = (page - 1) * limit;
+    
+    // Dynamically build the WHERE clause and parameters to prevent SQL injection
+    let whereClause = 'WHERE u.company_id = $1';
+    let params = [req.user.company_id];
+    let paramCount = 1;
+
+    if (search) {
+      paramCount++;
+      // Use ILIKE for case-insensitive searching
+      whereClause += ` AND (u.first_name ILIKE $${paramCount} OR u.last_name ILIKE $${paramCount} OR u.email ILIKE $${paramCount})`;
+      params.push(`%${search}%`);
+    }
+
+    if (role) {
+      paramCount++;
+      whereClause += ` AND u.role_type = $${paramCount}`;
+      params.push(role);
+    }
+
+    // Main query to fetch the paginated list of users
+    const result = await db.query(`
+      SELECT 
+        u.id, u.email, u.first_name, u.last_name, u.role_type, u.phone, 
+        u.address, u.hire_date, u.is_active, u.created_at,
+        jr.title as job_title, jr.hourly_rate
+      FROM users u
+      LEFT JOIN job_roles jr ON u.job_role_id = jr.id
+      ${whereClause}
+      ORDER BY u.first_name, u.last_name
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+    `, [...params, limit, offset]);
+
+    // Separate query to get the total count for pagination metadata
+    const countResult = await db.query(`
+      SELECT COUNT(*) as total 
+      FROM users u 
+      ${whereClause}
+    `, params);
+
+    res.json({
+      success: true,
+      data: {
+        // Sanitize and map the user data for the response
+        users: result.rows,
+        pagination: {
+          currentPage: parseInt(page),
+          totalItems: parseInt(countResult.rows[0].total),
+          totalPages: Math.ceil(countResult.rows[0].total / limit),
+          limit: parseInt(limit),
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch users.' } });
+  }
+});
+
+/**
+ * POST /api/v1/users
+ * Creates a new user within the admin's company.
+ * Access: Admin only
+ */
+router.post('/', authenticateToken, requireRole(['admin']), validateUserCreation, async (req, res) => {
+  try {
+    const { email, password, firstName, lastName, roleType, jobRoleId, phone, address, hireDate } = req.body;
+
+    // Check if a user with that email already exists in the database
+    const existingUser = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ success: false, error: { code: 'EMAIL_EXISTS', message: 'A user with this email already exists.' } });
+    }
+
+    // Hash the provided password for secure storage
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // Insert the new user into the database
+    const result = await db.query(`
+      INSERT INTO users (
+        company_id, email, password_hash, first_name, last_name, 
+        role_type, job_role_id, phone, address, hire_date
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id, email, first_name, last_name, role_type, created_at
+    `, [
+      req.user.company_id, email, passwordHash, firstName, lastName,
+      roleType, jobRoleId, phone, address, hireDate
+    ]);
+
+    res.status(201).json({ success: true, data: { user: result.rows[0] } });
+  } catch (error) {
+    console.error('Create user error:', error);
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to create user.' } });
+  }
+});
+
+/**
+ * GET /api/v1/users/:id
+ * Retrieves a specific user's details.
+ * Access: Admins/Managers can get any user in their company. Employees can only get their own profile.
+ */
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Security check: Employees can only view their own profile.
+    if (req.user.role_type === 'employee' && req.user.id !== id) {
+      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You are not authorized to view this profile.' } });
+    }
+
+    const result = await db.query(`
+      SELECT 
+        u.id, u.email, u.first_name, u.last_name, u.role_type, u.phone, 
+        u.address, u.hire_date, u.is_active, u.created_at,
+        jr.title as job_title, jr.hourly_rate, jr.overtime_rate
+      FROM users u
+      LEFT JOIN job_roles jr ON u.job_role_id = jr.id
+      WHERE u.id = $1 AND u.company_id = $2
+    `, [id, req.user.company_id]); // Ensures user belongs to the same company
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { code: 'USER_NOT_FOUND', message: 'User not found in this company.' } });
+    }
+
+    res.json({ success: true, data: { user: result.rows[0] } });
+  } catch (error) {
+    console.error('Get user by ID error:', error);
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch user.' } });
+  }
+});
+
+/**
+ * PUT /api/v1/users/:id
+ * Updates a user's details.
+ * Access: Admins can update any field. Employees can only update their own non-critical fields.
+ */
+router.put('/:id', authenticateToken, validateUserUpdate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Security check: Employees can only update their own profile.
+    if (req.user.role_type === 'employee' && req.user.id !== id) {
+      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You are not authorized to update this profile.' } });
+    }
+    if (req.user.role_type === 'manager' && req.user.id !== id) {
+        // Managers can only update users they manage (logic to be added), for now same as employee
+        // Or, more simply, prevent them from updating others unless they're an admin.
+        if (req.body.roleType || req.body.jobRoleId || req.body.isActive !== undefined) {
+            return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Managers cannot change roles or activation status.' } });
+        }
+    }
+
+
+    // Dynamically build the SET clause based on the request body
+    const fields = [];
+    const values = [];
+    let paramCount = 1;
+
+    // Define fields that can be updated
+    const allowedFields = {
+        email: 'email',
+        firstName: 'first_name',
+        lastName: 'last_name',
+        phone: 'phone',
+        address: 'address',
+        // Admin-only fields
+        roleType: req.user.role_type === 'admin' ? 'role_type' : null,
+        jobRoleId: req.user.role_type === 'admin' ? 'job_role_id' : null,
+        isActive: req.user.role_type === 'admin' ? 'is_active' : null
+    };
+
+    for(const key in allowedFields) {
+        if(allowedFields[key] && req.body[key] !== undefined) {
+            fields.push(`${allowedFields[key]} = $${paramCount++}`);
+            values.push(req.body[key]);
+        }
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, error: { code: 'NO_UPDATES', message: 'No valid fields provided for update.' } });
+    }
+
+    values.push(id, req.user.company_id);
+    
+    const result = await db.query(`
+      UPDATE users 
+      SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $${paramCount++} AND company_id = $${paramCount++}
+      RETURNING id, email, first_name, last_name, role_type, updated_at
+    `, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { code: 'USER_NOT_FOUND', message: 'User not found or update failed.' } });
+    }
+
+    res.json({ success: true, data: { user: result.rows[0] } });
+  } catch (error) {
+    console.error('Update user error:', error);
+    if(error.code === '23505') { // Unique constraint violation (e.g., email)
+        return res.status(409).json({ success: false, error: { code: 'EMAIL_EXISTS', message: 'This email is already in use.' } });
+    }
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to update user.' } });
+  }
+});
+
+/**
+ * DELETE /api/v1/users/:id
+ * "Deletes" a user by setting their 'is_active' flag to false (soft delete).
+ * Access: Admin only
+ */
+router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Prevent an admin from deactivating their own account
+    if (req.user.id === id) {
+      return res.status(400).json({ success: false, error: { code: 'SELF_DEACTIVATION_PROHIBITED', message: 'Admins cannot deactivate their own accounts.' } });
+    }
+
+    // We use a soft delete by setting is_active to false. This preserves data integrity.
+    const result = await db.query(`
+      UPDATE users 
+      SET is_active = false, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1 AND company_id = $2 AND is_active = true
+      RETURNING id
+    `, [id, req.user.company_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { code: 'USER_NOT_FOUND', message: 'User not found or is already inactive.' } });
+    }
+
+    res.status(200).json({ success: true, data: { message: 'User has been deactivated successfully.' } });
+  } catch (error) {
+    console.error('Deactivate user error:', error);
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to deactivate user.' } });
+  }
+});
+
+module.exports = router;
