@@ -95,9 +95,30 @@ router.get('/today',
 );
 
 /**
- * @route   GET /api/v1/time-tracking/status
- * @desc    Get current punch status for user (clocked in/out)
- * @access  All authenticated users
+ * @swagger
+ * /api/v1/time-tracking/status:
+ *   get:
+ *     summary: Get current punch status for user (clocked in/out)
+ *     tags: [Time Tracking]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current punch status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   enum: [clocked_in, clocked_out, on_break]
+ *                 lastPunch:
+ *                   $ref: '#/components/schemas/TimePunch'
+ *                 totalHoursToday:
+ *                   type: number
+ *       401:
+ *         description: Unauthorized
  */
 router.get('/status',
   authenticateToken,
@@ -105,9 +126,72 @@ router.get('/status',
 );
 
 /**
- * @route   GET /api/v1/time-tracking/history/:id
- * @desc    Get time punch history for a user
- * @access  Admin/Manager (any user), Employee (own data only)
+ * @swagger
+ * /api/v1/time-tracking/history/{id}:
+ *   get:
+ *     summary: Get time punch history for a user
+ *     tags: [Time Tracking]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: User ID
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for history
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for history
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *           maximum: 100
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: Time punch history retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 punches:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/TimePunch'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: User not found
  */
 router.get('/history/:id',
   authenticateToken,
@@ -117,9 +201,52 @@ router.get('/history/:id',
 );
 
 /**
- * @route   GET /api/v1/time-tracking/summary/:id
- * @desc    Get time punch summary for a user and date range
- * @access  Admin/Manager (any user), Employee (own data only)
+ * @swagger
+ * /api/v1/time-tracking/summary/{id}:
+ *   get:
+ *     summary: Get time punch summary for a user and date range
+ *     tags: [Time Tracking]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: User ID
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for summary
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for summary
+ *     responses:
+ *       200:
+ *         description: Time punch summary retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalHours:
+ *                   type: number
+ *                 regularHours:
+ *                   type: number
+ *                 overtimeHours:
+ *                   type: number
+ *                 totalDays:
+ *                   type: integer
+ *                 averageHoursPerDay:
+ *                   type: number
+ *       403:
+ *         description: Access denied
  */
 router.get('/summary/:id',
   authenticateToken,
@@ -129,9 +256,58 @@ router.get('/summary/:id',
 );
 
 /**
- * @route   GET /api/v1/time-tracking/team-overview
- * @desc    Get team time tracking overview for a specific date
- * @access  Admin, Manager
+ * @swagger
+ * /api/v1/time-tracking/team-overview:
+ *   get:
+ *     summary: Get team time tracking overview for a specific date
+ *     tags: [Time Tracking]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Date for team overview (defaults to today)
+ *       - in: query
+ *         name: department
+ *         schema:
+ *           type: string
+ *         description: Filter by department
+ *     responses:
+ *       200:
+ *         description: Team overview retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 date:
+ *                   type: string
+ *                   format: date
+ *                 totalEmployees:
+ *                   type: integer
+ *                 presentEmployees:
+ *                   type: integer
+ *                 attendanceRate:
+ *                   type: number
+ *                 employees:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       name:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *                         enum: [present, absent, late]
+ *                       hoursWorked:
+ *                         type: number
+ *       403:
+ *         description: Access denied - Admin/Manager role required
  */
 router.get('/team-overview',
   authenticateToken,

@@ -768,6 +768,194 @@ class TimePunch {
       lastPunchTime: punches.length > 0 ? punches[punches.length - 1].punch_time : null
     };
   }
+
+  /**
+   * Get total hours worked for a company within date range
+   */
+  static async getTotalHours(companyId, dateRange) {
+    try {
+      const query = `
+        SELECT 
+          COALESCE(SUM(
+            CASE 
+              WHEN tp_out.timestamp IS NOT NULL 
+              THEN TIMESTAMPDIFF(MINUTE, tp_in.timestamp, tp_out.timestamp) / 60.0
+              ELSE 0
+            END
+          ), 0) as totalHours
+        FROM time_punches tp_in
+        LEFT JOIN time_punches tp_out ON tp_in.userId = tp_out.userId 
+          AND tp_out.type = 'clock_out' 
+          AND tp_out.timestamp > tp_in.timestamp
+          AND tp_out.timestamp = (
+            SELECT MIN(timestamp) 
+            FROM time_punches 
+            WHERE userId = tp_in.userId 
+              AND type = 'clock_out' 
+              AND timestamp > tp_in.timestamp
+          )
+        INNER JOIN users u ON tp_in.userId = u.id
+        WHERE tp_in.type = 'clock_in'
+          AND u.companyId = ?
+          AND tp_in.timestamp BETWEEN ? AND ?
+      `;
+      
+      const [result] = await db.execute(query, [companyId, dateRange.startDate, dateRange.endDate]);
+      return result[0]?.totalHours || 0;
+    } catch (error) {
+      logger.error('Error getting total hours:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get average hours per employee
+   */
+  static async getAverageHoursPerEmployee(companyId, dateRange) {
+    try {
+      const totalHours = await this.getTotalHours(companyId, dateRange);
+      const activeEmployees = await User.countActiveByCompany(companyId);
+      return activeEmployees > 0 ? totalHours / activeEmployees : 0;
+    } catch (error) {
+      logger.error('Error getting average hours per employee:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get overtime hours
+   */
+  static async getOvertimeHours(companyId, dateRange) {
+    try {
+      // Consider overtime as hours over 40 per week per employee
+      const query = `
+        SELECT 
+          userId,
+          WEEK(tp_in.timestamp) as week_num,
+          SUM(
+            CASE 
+              WHEN tp_out.timestamp IS NOT NULL 
+              THEN TIMESTAMPDIFF(MINUTE, tp_in.timestamp, tp_out.timestamp) / 60.0
+              ELSE 0
+            END
+          ) as weeklyHours
+        FROM time_punches tp_in
+        LEFT JOIN time_punches tp_out ON tp_in.userId = tp_out.userId 
+          AND tp_out.type = 'clock_out' 
+          AND tp_out.timestamp > tp_in.timestamp
+          AND tp_out.timestamp = (
+            SELECT MIN(timestamp) 
+            FROM time_punches 
+            WHERE userId = tp_in.userId 
+              AND type = 'clock_out' 
+              AND timestamp > tp_in.timestamp
+          )
+        INNER JOIN users u ON tp_in.userId = u.id
+        WHERE tp_in.type = 'clock_in'
+          AND u.companyId = ?
+          AND tp_in.timestamp BETWEEN ? AND ?
+        GROUP BY userId, WEEK(tp_in.timestamp)
+        HAVING weeklyHours > 40
+      `;
+      
+      const [results] = await db.execute(query, [companyId, dateRange.startDate, dateRange.endDate]);
+      return results.reduce((total, row) => total + Math.max(0, row.weeklyHours - 40), 0);
+    } catch (error) {
+      logger.error('Error getting overtime hours:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get currently working employees
+   */
+  static async getCurrentlyWorking() {
+    try {
+      const query = `
+        SELECT 
+          u.id,
+          u.firstName,
+          u.lastName,
+          u.email,
+          tp.timestamp as clockInTime,
+          tp.location
+        FROM users u
+        INNER JOIN time_punches tp ON u.id = tp.userId
+        WHERE tp.type = 'clock_in'
+          AND tp.id = (
+            SELECT MAX(id) 
+            FROM time_punches 
+            WHERE userId = u.id
+          )
+          AND NOT EXISTS (
+            SELECT 1 
+            FROM time_punches tp2 
+            WHERE tp2.userId = u.id 
+              AND tp2.type = 'clock_out' 
+              AND tp2.timestamp > tp.timestamp
+          )
+        ORDER BY tp.timestamp DESC
+      `;
+      
+      const [results] = await db.execute(query);
+      return results;
+    } catch (error) {
+      logger.error('Error getting currently working employees:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get today's time punch statistics
+   */
+  static async getTodayStats(startOfDay) {
+    try {
+      const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+      
+      const query = `
+        SELECT 
+          COUNT(DISTINCT CASE WHEN type = 'clock_in' THEN userId END) as clockedIn,
+          COUNT(DISTINCT CASE WHEN type = 'clock_out' THEN userId END) as clockedOut,
+          COUNT(*) as totalPunches
+        FROM time_punches
+        WHERE timestamp BETWEEN ? AND ?
+      `;
+      
+      const [result] = await db.execute(query, [startOfDay, endOfDay]);
+      return result[0];
+    } catch (error) {
+      logger.error('Error getting today stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get recent activity
+   */
+  static async getRecentActivity(limit = 10) {
+    try {
+      const query = `
+        SELECT 
+          tp.id,
+          tp.type,
+          tp.timestamp,
+          tp.location,
+          u.firstName,
+          u.lastName,
+          u.email
+        FROM time_punches tp
+        INNER JOIN users u ON tp.userId = u.id
+        ORDER BY tp.timestamp DESC
+        LIMIT ?
+      `;
+      
+      const [results] = await db.execute(query, [limit]);
+      return results;
+    } catch (error) {
+      logger.error('Error getting recent activity:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = TimePunch;

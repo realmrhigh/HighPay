@@ -22,6 +22,7 @@ const authRoutes = require('./src/routes/authRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const jobRoleRoutes = require('./src/routes/jobRoleRoutes');
 const reportRoutes = require('./src/routes/reportRoutes');
+const analyticsRoutes = require('./src/routes/analyticsRoutes');
 // TODO: Import other routes as they are created
 
 // Load and validate environment
@@ -128,6 +129,7 @@ app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/job-roles', jobRoleRoutes);
 app.use('/api/v1/time-tracking', timeTrackingRoutes);
 app.use('/api/v1/reports', reportRoutes);
+app.use('/api/v1/analytics', analyticsRoutes);
 // TODO: Add other route imports as they are created
 // app.use('/api/v1/companies', companyRoutes);
 // app.use('/api/v1/time-tracking', timeTrackingRoutes);

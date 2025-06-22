@@ -394,22 +394,219 @@ Response includes:
 3. Verify PDF formatting and content
 4. Test access control for different user roles
 
-## 🚀 Next Steps
+## 📊 Advanced Analytics System
 
-The system now includes:
-✅ **Interactive API Documentation** with Swagger UI
-✅ **Professional PDF Generation** for all reports
-✅ **Real-time WebSocket Features** for live updates
-✅ **Enhanced Security** and rate limiting
-✅ **Comprehensive Testing Tools**
+### 🎯 Analytics Overview
+HighPay now includes a comprehensive analytics and reporting system that provides deep insights into workforce management, payroll trends, and operational efficiency.
 
-### Recommended Next Features:
-- 📈 **Analytics Dashboard** with charts and metrics
-- 🔄 **CI/CD Pipeline** with GitHub Actions
-- 📧 **Email Templates** for notifications
-- 🎯 **Advanced Reporting** with filters and exports
-- 🔍 **Audit Logging** for compliance
-- 📱 **Mobile App Integration** via API
+### 📈 Analytics Features
+
+#### 🏗️ Dashboard Analytics
+- **Employee Metrics**: Total employees, active count, new hires, turnover rates
+- **Time Tracking Analytics**: Total hours, average hours per employee, overtime analysis
+- **Payroll Insights**: Total payroll costs, average pay, deduction breakdowns
+- **Productivity Metrics**: Performance scoring, efficiency trends, department comparisons
+- **Attendance Analysis**: Punctuality tracking, absenteeism patterns, attendance rates
+
+#### ⚡ Real-time Analytics
+- **Live Employee Status**: Currently working employees with clock-in times
+- **Today's Statistics**: Daily punch counts, hours worked, activity summaries
+- **Recent Activity Feed**: Live stream of employee time punches and activities
+- **System Health Monitoring**: Server performance, memory usage, uptime tracking
+
+#### 📊 Advanced Reporting
+- **Custom Reports**: Generate reports with specific date ranges, metrics, and filters
+- **Trend Analysis**: Historical data visualization with charts and graphs
+- **Department Breakdowns**: Compare performance across different departments
+- **Export Capabilities**: Download analytics data in JSON or CSV formats
+
+### 🔌 Analytics API Endpoints
+
+#### Core Analytics
+```bash
+# Dashboard Analytics
+GET /api/v1/analytics/dashboard?timeframe=month
+
+# Employee-Specific Analytics
+GET /api/v1/analytics/employee/{id}?timeframe=month
+
+# Real-time Analytics
+GET /api/v1/analytics/realtime
+
+# Payroll Analytics
+GET /api/v1/analytics/payroll?timeframe=year
+
+# Attendance Analytics
+GET /api/v1/analytics/attendance?timeframe=month
+```
+
+#### Advanced Analytics
+```bash
+# Time Tracking Analytics
+GET /api/v1/analytics/time-tracking?timeframe=month&userId=123
+
+# Productivity Metrics
+GET /api/v1/analytics/productivity?timeframe=month&departmentId=5
+
+# Custom Reports
+POST /api/v1/analytics/custom-report
+{
+  "startDate": "2025-06-01",
+  "endDate": "2025-06-30",
+  "metrics": ["hours", "attendance", "payroll"],
+  "groupBy": "week",
+  "filters": {"department": "engineering"}
+}
+
+# Export Analytics
+GET /api/v1/analytics/export?type=dashboard&format=csv&timeframe=month
+```
+
+### 📱 Interactive Analytics Dashboard
+
+HighPay includes a beautiful, real-time analytics dashboard accessible at `analytics-dashboard.html`:
+
+#### 🎨 Dashboard Features
+- **Real-time Metrics Cards**: Live employee count, hours worked, payroll totals
+- **Interactive Charts**: Hours trends, department breakdowns with Chart.js
+- **Live Activity Feed**: Real-time employee clock-in/out notifications via WebSocket
+- **Responsive Design**: Mobile-friendly interface with modern UI
+- **Export Functions**: One-click data export in multiple formats
+
+#### 🔧 Dashboard Usage
+1. Open `analytics-dashboard.html` in your browser
+2. Enter a valid JWT token (Admin/Manager role required)
+3. Select timeframe (today, week, month, quarter, year)
+4. Click "Refresh Dashboard" to load analytics data
+5. Click "Connect Real-time" for live WebSocket updates
+6. Use "Export Data" to download analytics reports
+
+### 📊 Analytics Data Models
+
+#### Dashboard Analytics Response
+```json
+{
+  "success": true,
+  "data": {
+    "timeframe": "month",
+    "dateRange": {
+      "startDate": "2025-06-01T00:00:00Z",
+      "endDate": "2025-06-30T23:59:59Z"
+    },
+    "employee": {
+      "total": 150,
+      "active": 145,
+      "newHires": 8,
+      "turnoverRate": 2.3
+    },
+    "timeTracking": {
+      "totalHours": 2840.5,
+      "averageHoursPerEmployee": 19.6,
+      "overtimeHours": 120.0,
+      "regularHours": 2720.5
+    },
+    "payroll": {
+      "totalGrossPay": 245000.00,
+      "totalNetPay": 185000.00,
+      "averagePayPerEmployee": 1633.33,
+      "totalDeductions": 60000.00
+    },
+    "generatedAt": "2025-06-22T10:30:00Z"
+  }
+}
+```
+
+#### Real-time Analytics Response
+```json
+{
+  "success": true,
+  "data": {
+    "timestamp": "2025-06-22T10:30:00Z",
+    "currentlyWorking": [
+      {
+        "id": 123,
+        "firstName": "John",
+        "lastName": "Doe",
+        "clockInTime": "2025-06-22T08:00:00Z",
+        "location": {"latitude": 40.7128, "longitude": -74.0060}
+      }
+    ],
+    "todayPunches": {
+      "clockedIn": 45,
+      "clockedOut": 38,
+      "totalPunches": 167
+    },
+    "recentActivity": [
+      {
+        "id": 1001,
+        "type": "clock_in",
+        "timestamp": "2025-06-22T10:25:00Z",
+        "firstName": "Jane",
+        "lastName": "Smith"
+      }
+    ],
+    "systemHealth": {
+      "uptime": 86400,
+      "memoryUsage": {
+        "rss": 45000000,
+        "heapTotal": 25000000,
+        "heapUsed": 18000000
+      }
+    }
+  }
+}
+```
+
+### 🎯 Analytics Use Cases
+
+#### For HR Managers
+- **Workforce Planning**: Analyze hiring trends and staffing needs
+- **Performance Monitoring**: Track employee productivity and attendance
+- **Cost Analysis**: Monitor payroll costs and budget planning
+- **Compliance Reporting**: Generate reports for regulatory compliance
+
+#### For Department Managers
+- **Team Performance**: Monitor individual and team productivity
+- **Attendance Tracking**: Identify attendance patterns and issues
+- **Resource Planning**: Optimize scheduling based on analytics
+- **Real-time Monitoring**: Live tracking of team activity
+
+#### For Executives
+- **Strategic Insights**: High-level workforce and cost analytics
+- **Trend Analysis**: Long-term performance and growth trends
+- **ROI Analysis**: Payroll ROI and efficiency metrics
+- **Operational Overview**: Company-wide performance dashboards
+
+### 🔐 Analytics Security
+
+- **Role-Based Access**: Analytics endpoints require Admin/Manager roles
+- **Data Privacy**: Employee data is aggregated and anonymized where appropriate
+- **JWT Authentication**: All analytics endpoints require valid authentication
+- **Rate Limiting**: Analytics endpoints are rate-limited to prevent abuse
+
+### 🚀 Performance Optimizations
+
+- **Efficient Queries**: Optimized database queries for large datasets
+- **Caching Strategy**: Results cached for frequently accessed analytics
+- **Pagination Support**: Large result sets are paginated for performance
+- **Background Processing**: Heavy analytics calculations run asynchronously
+
+### 📊 Chart.js Integration
+
+The analytics dashboard uses Chart.js for beautiful, interactive visualizations:
+
+- **Line Charts**: Time series data (hours trends, attendance patterns)
+- **Doughnut Charts**: Category breakdowns (departments, roles)
+- **Bar Charts**: Comparative data (performance metrics, costs)
+- **Real-time Updates**: Charts update automatically with new data
+
+### 🎨 Customization Options
+
+- **Flexible Timeframes**: Today, week, month, quarter, year
+- **Custom Date Ranges**: Specify exact start and end dates
+- **Metric Selection**: Choose specific metrics for custom reports
+- **Export Formats**: JSON, CSV, and future PDF support
+- **Filter Options**: Department, role, employee-specific filters
 
 ## License
 

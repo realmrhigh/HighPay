@@ -526,6 +526,82 @@ class PayStub {
       handleDatabaseError(error, 'Pay stub deletion');
     }
   }
+
+  /**
+   * Get total payroll for company within date range
+   */
+  static async getTotalPayroll(companyId, dateRange) {
+    try {
+      const query = `
+        SELECT 
+          COUNT(*) as count,
+          COALESCE(SUM(grossPay), 0) as grossPay,
+          COALESCE(SUM(netPay), 0) as netPay
+        FROM pay_stubs ps
+        INNER JOIN users u ON ps.userId = u.id
+        WHERE u.companyId = ?
+          AND ps.payPeriodStart >= ?
+          AND ps.payPeriodEnd <= ?
+      `;
+      
+      const [result] = await db.execute(query, [companyId, dateRange.startDate, dateRange.endDate]);
+      return result[0];
+    } catch (error) {
+      logger.error('Error getting total payroll:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get average pay per employee
+   */
+  static async getAveragePayPerEmployee(companyId, dateRange) {
+    try {
+      const query = `
+        SELECT 
+          AVG(grossPay) as avgGrossPay,
+          AVG(netPay) as avgNetPay
+        FROM pay_stubs ps
+        INNER JOIN users u ON ps.userId = u.id
+        WHERE u.companyId = ?
+          AND ps.payPeriodStart >= ?
+          AND ps.payPeriodEnd <= ?
+      `;
+      
+      const [result] = await db.execute(query, [companyId, dateRange.startDate, dateRange.endDate]);
+      return result[0];
+    } catch (error) {
+      logger.error('Error getting average pay per employee:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get total deductions
+   */
+  static async getTotalDeductions(companyId, dateRange) {
+    try {
+      const query = `
+        SELECT 
+          COALESCE(SUM(JSON_EXTRACT(deductions, '$.federal_tax')), 0) as federalTax,
+          COALESCE(SUM(JSON_EXTRACT(deductions, '$.state_tax')), 0) as stateTax,
+          COALESCE(SUM(JSON_EXTRACT(deductions, '$.social_security')), 0) as socialSecurity,
+          COALESCE(SUM(JSON_EXTRACT(deductions, '$.medicare')), 0) as medicare,
+          COALESCE(SUM(grossPay - netPay), 0) as totalDeductions
+        FROM pay_stubs ps
+        INNER JOIN users u ON ps.userId = u.id
+        WHERE u.companyId = ?
+          AND ps.payPeriodStart >= ?
+          AND ps.payPeriodEnd <= ?
+      `;
+      
+      const [result] = await db.execute(query, [companyId, dateRange.startDate, dateRange.endDate]);
+      return result[0];
+    } catch (error) {
+      logger.error('Error getting total deductions:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = PayStub;

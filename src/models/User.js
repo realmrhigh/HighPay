@@ -484,6 +484,93 @@ class User {
       handleDatabaseError(error, 'Update last login');
     }
   }
+
+  /**
+   * Count total employees by company
+   */
+  static async countByCompany(companyId) {
+    try {
+      const query = 'SELECT COUNT(*) as count FROM users WHERE companyId = ?';
+      const [result] = await db.execute(query, [companyId]);
+      return result[0].count;
+    } catch (error) {
+      logger.error('Error counting users by company:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Count active employees by company
+   */
+  static async countActiveByCompany(companyId) {
+    try {
+      const query = 'SELECT COUNT(*) as count FROM users WHERE companyId = ? AND isActive = 1';
+      const [result] = await db.execute(query, [companyId]);
+      return result[0].count;
+    } catch (error) {
+      logger.error('Error counting active users by company:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Count new hires within date range
+   */
+  static async countNewHires(companyId, dateRange) {
+    try {
+      const query = `
+        SELECT COUNT(*) as count 
+        FROM users 
+        WHERE companyId = ? 
+          AND createdAt BETWEEN ? AND ?
+      `;
+      const [result] = await db.execute(query, [companyId, dateRange.startDate, dateRange.endDate]);
+      return result[0].count;
+    } catch (error) {
+      logger.error('Error counting new hires:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Count employees by company at specific date
+   */
+  static async countByCompanyAtDate(companyId, date) {
+    try {
+      const query = `
+        SELECT COUNT(*) as count 
+        FROM users 
+        WHERE companyId = ? 
+          AND createdAt <= ?
+          AND (updatedAt IS NULL OR updatedAt <= ? OR isActive = 1)
+      `;
+      const [result] = await db.execute(query, [companyId, date, date]);
+      return result[0].count;
+    } catch (error) {
+      logger.error('Error counting users by company at date:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Count departures within date range
+   */
+  static async countDepartures(companyId, dateRange) {
+    try {
+      const query = `
+        SELECT COUNT(*) as count 
+        FROM users 
+        WHERE companyId = ? 
+          AND isActive = 0
+          AND updatedAt BETWEEN ? AND ?
+      `;
+      const [result] = await db.execute(query, [companyId, dateRange.startDate, dateRange.endDate]);
+      return result[0].count;
+    } catch (error) {
+      logger.error('Error counting departures:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = User;
