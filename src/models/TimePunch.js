@@ -140,7 +140,7 @@ class TimePunch {
           LIMIT 1
         `;
         
-        const clockInResult = await db.query(clockInQuery, [userId, PUNCH_TYPES.CLOCK_IN, timestamp]);
+        const clockInResult = await db.query(clockInQuery, [UserId, PUNCH_TYPES.CLOCK_IN, timestamp]);
         
         if (clockInResult.rows.length > 0) {
           const clockInTime = new Date(clockInResult.rows[0].timestamp);
@@ -515,6 +515,258 @@ class TimePunch {
       logger.error('Failed to delete time punch', { error: error.message, punchId: id });
       handleDatabaseError(error, 'Time punch deletion');
     }
+  }
+
+  /**
+   * Get last punch for a user
+   * @param {string} userId - User ID
+   * @returns {Promise<object|null>} - Last punch or null
+   */
+  static async getLastPunch(userId) {
+    try {
+      const query = `
+        SELECT * FROM time_punches 
+        WHERE user_id = $1 
+        ORDER BY punch_time DESC 
+        LIMIT 1
+      `;
+      const result = await db.query(query, [userId]);
+      return result.rows[0] || null;
+    } catch (error) {
+      handleDatabaseError(error, 'Get last punch');
+    }
+  }
+
+  /**
+   * Get today's punches for a user
+   * @param {string} userId - User ID
+   * @param {Date} date - Target date
+   * @returns {Promise<object>} - Punches and summary
+   */
+  static async getTodaysPunches(userId, date = new Date()) {
+    try {
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const query = `
+        SELECT 
+          id, punch_type, punch_time, location_lat, location_lng, notes
+        FROM time_punches
+        WHERE user_id = $1 
+        AND punch_time >= $2 
+        AND punch_time <= $3
+        ORDER BY punch_time ASC
+      `;
+
+      const result = await db.query(query, [userId, startOfDay, endOfDay]);
+      const punches = result.rows;
+
+      // Calculate summary
+      const summary = this.calculateDaySummary(punches);
+
+      return {
+        punches: punches.map(punch => ({
+          id: punch.id,
+          type: punch.punch_type,
+          timestamp: punch.punch_time,
+          location: {
+            latitude: punch.location_lat,
+            longitude: punch.location_lng
+          },
+          notes: punch.notes
+        })),
+        summary
+      };
+    } catch (error) {
+      handleDatabaseError(error, 'Get today\'s punches');
+    }
+  }
+
+  /**
+   * Get time punch history with pagination
+   * @param {object} filters - Filter options
+   * @param {object} pagination - Pagination options
+   * @returns {Promise<object>} - Punches with pagination
+   */
+  static async getHistory(filters, pagination) {
+    try {
+      const { userId, startDate, endDate } = filters;
+      const { page, limit } = pagination;
+      const offset = (page - 1) * limit;
+
+      let whereClause = 'WHERE user_id = $1';
+      const params = [userId];
+      let paramCount = 1;
+
+      if (startDate) {
+        paramCount++;
+        whereClause += ` AND punch_time >= $${paramCount}`;
+        params.push(startDate);
+      }
+
+      if (endDate) {
+        paramCount++;
+        whereClause += ` AND punch_time <= $${paramCount}`;
+        params.push(endDate);
+      }
+
+      // Main query
+      const query = `
+        SELECT 
+          id, punch_type, punch_time, location_lat, location_lng, notes, created_at
+        FROM time_punches
+        ${whereClause}
+        ORDER BY punch_time DESC
+        LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+      `;
+
+      // Count query
+      const countQuery = `
+        SELECT COUNT(*) as total
+        FROM time_punches
+        ${whereClause}
+      `;
+
+      const [result, countResult] = await Promise.all([
+        db.query(query, [...params, limit, offset]),
+        db.query(countQuery, params)
+      ]);
+
+      return {
+        punches: result.rows.map(punch => ({
+          id: punch.id,
+          type: punch.punch_type,
+          timestamp: punch.punch_time,
+          location: {
+            latitude: punch.location_lat,
+            longitude: punch.location_lng
+          },
+          notes: punch.notes,
+          createdAt: punch.created_at
+        })),
+        pagination: {
+          currentPage: page,
+          totalItems: parseInt(countResult.rows[0].total),
+          totalPages: Math.ceil(countResult.rows[0].total / limit),
+          limit
+        }
+      };
+    } catch (error) {
+      handleDatabaseError(error, 'Get punch history');
+    }
+  }
+
+  /**
+   * Get current punch status for user
+   * @param {string} userId - User ID
+   * @returns {Promise<object>} - Current status
+   */
+  static async getCurrentStatus(userId) {
+    try {
+      const lastPunch = await this.getLastPunch(userId);
+      
+      const status = {
+        isClockedIn: lastPunch ? lastPunch.punch_type === 'in' : false,
+        lastPunch: lastPunch ? {
+          id: lastPunch.id,
+          type: lastPunch.punch_type,
+          timestamp: lastPunch.punch_time
+        } : null
+      };
+
+      // If clocked in, calculate current session duration
+      if (status.isClockedIn) {
+        const now = new Date();
+        const punchTime = new Date(lastPunch.punch_time);
+        const durationMs = now.getTime() - punchTime.getTime();
+        
+        status.currentSessionDuration = {
+          hours: Math.floor(durationMs / (1000 * 60 * 60)),
+          minutes: Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60)),
+          totalMinutes: Math.floor(durationMs / (1000 * 60))
+        };
+      }
+
+      return status;
+    } catch (error) {
+      handleDatabaseError(error, 'Get current status');
+    }
+  }
+
+  /**
+   * Validate user access for time tracking
+   * @param {string} userId - User ID
+   * @param {string} companyId - Company ID
+   * @returns {Promise<object|null>} - User info or null
+   */
+  static async validateUserAccess(userId, companyId) {
+    try {
+      const query = `
+        SELECT id, first_name, last_name, company_id
+        FROM users
+        WHERE id = $1 AND company_id = $2 AND is_active = true
+      `;
+      const result = await db.query(query, [userId, companyId]);
+      return result.rows[0] || null;
+    } catch (error) {
+      handleDatabaseError(error, 'Validate user access');
+    }
+  }
+
+  /**
+   * Calculate day summary from punches
+   * @param {Array} punches - Array of punch records
+   * @returns {object} - Day summary
+   */
+  static calculateDaySummary(punches) {
+    let totalMinutes = 0;
+    let clockedIn = false;
+    let currentSessionStart = null;
+    let breakMinutes = 0;
+    let punchPairs = [];
+
+    for (let i = 0; i < punches.length; i++) {
+      const punch = punches[i];
+      
+      if (punch.punch_type === 'in') {
+        clockedIn = true;
+        currentSessionStart = new Date(punch.punch_time);
+      } else if (punch.punch_type === 'out' && currentSessionStart) {
+        const sessionEnd = new Date(punch.punch_time);
+        const sessionMinutes = (sessionEnd.getTime() - currentSessionStart.getTime()) / (1000 * 60);
+        totalMinutes += sessionMinutes;
+        
+        punchPairs.push({
+          in: currentSessionStart,
+          out: sessionEnd,
+          minutes: sessionMinutes
+        });
+        
+        clockedIn = false;
+        currentSessionStart = null;
+      }
+    }
+
+    // If still clocked in, calculate current session
+    let currentSessionMinutes = 0;
+    if (clockedIn && currentSessionStart) {
+      const now = new Date();
+      currentSessionMinutes = (now.getTime() - currentSessionStart.getTime()) / (1000 * 60);
+    }
+
+    return {
+      totalHours: Math.round((totalMinutes / 60) * 100) / 100,
+      totalMinutes: Math.round(totalMinutes),
+      isClockedIn: clockedIn,
+      currentSessionHours: Math.round((currentSessionMinutes / 60) * 100) / 100,
+      currentSessionMinutes: Math.round(currentSessionMinutes),
+      punchCount: punches.length,
+      sessions: punchPairs.length,
+      lastPunchTime: punches.length > 0 ? punches[punches.length - 1].punch_time : null
+    };
   }
 }
 
