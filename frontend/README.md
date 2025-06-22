@@ -46,7 +46,7 @@ A modern, responsive React dashboard for the HighPay payroll management system.
    ```
 
 3. **Open Dashboard**
-   Navigate to `http://localhost:3001`
+   Navigate to `http://localhost:5173`
 
 4. **Login**
    Use the demo credentials provided on the login page:
