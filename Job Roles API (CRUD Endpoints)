@@ -1,0 +1,244 @@
+// src/routes/jobRoles.js
+const express = require('express');
+const { body } = require('express-validator');
+const db = require('../database/connection');
+const { authenticateToken, requireRole } = require('../middleware/auth');
+const { handleValidationErrors } = require('../utils/validation');
+
+const router = express.Router();
+
+// --- Validation Middleware ---
+const validateJobRole = [
+  body('title').trim().notEmpty().withMessage('Job title is required.'),
+  body('hourlyRate').isFloat({ gt: 0 }).withMessage('Hourly rate must be a positive number.'),
+  body('overtimeRate').optional().isFloat({ gt: 0 }).withMessage('Overtime rate must be a positive number.'),
+  body('description').optional().trim(),
+  body('isActive').optional().isBoolean(),
+  handleValidationErrors
+];
+
+
+// --- Job Role API Routes ---
+
+/**
+ * GET /api/v1/job-roles
+ * Lists all job roles for the user's company.
+ * Can be filtered by active status. Includes a count of active employees in each role.
+ * Access: Authenticated Users
+ */
+router.get('/', authenticateToken, async (req, res) => {
+  try {
+    const { active = 'true' } = req.query;
+    
+    let whereClause = 'WHERE jr.company_id = $1';
+    const params = [req.user.company_id];
+    
+    if (active === 'true') {
+      whereClause += ' AND jr.is_active = true';
+    } else if (active === 'false') {
+      whereClause += ' AND jr.is_active = false';
+    }
+
+    const result = await db.query(`
+      SELECT 
+        jr.id, jr.title, jr.hourly_rate, jr.overtime_rate, 
+        jr.description, jr.is_active, jr.created_at, jr.updated_at,
+        COUNT(u.id) as employee_count
+      FROM job_roles jr
+      LEFT JOIN users u ON jr.id = u.job_role_id AND u.is_active = true
+      ${whereClause}
+      GROUP BY jr.id
+      ORDER BY jr.title ASC
+    `, params);
+
+    res.json({
+      success: true,
+      data: {
+        jobRoles: result.rows.map(role => ({
+          ...role,
+          hourly_rate: parseFloat(role.hourly_rate),
+          overtime_rate: role.overtime_rate ? parseFloat(role.overtime_rate) : null,
+          employee_count: parseInt(role.employee_count, 10)
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Get job roles error:', error);
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch job roles.' } });
+  }
+});
+
+/**
+ * POST /api/v1/job-roles
+ * Creates a new job role.
+ * Access: Admin only
+ */
+router.post('/', authenticateToken, requireRole(['admin']), validateJobRole, async (req, res) => {
+  try {
+    const { title, hourlyRate, overtimeRate, description } = req.body;
+
+    // Check if a job role with the same title already exists for this company
+    const existingRole = await db.query(
+      'SELECT id FROM job_roles WHERE company_id = $1 AND title ILIKE $2 AND is_active = true',
+      [req.user.company_id, title]
+    );
+
+    if (existingRole.rows.length > 0) {
+      return res.status(409).json({ success: false, error: { code: 'JOB_ROLE_EXISTS', message: 'An active job role with this title already exists.' } });
+    }
+
+    const result = await db.query(`
+      INSERT INTO job_roles (company_id, title, hourly_rate, overtime_rate, description)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [
+      req.user.company_id,
+      title,
+      hourlyRate,
+      overtimeRate || hourlyRate * 1.5, // Default OT to 1.5x if not provided
+      description
+    ]);
+
+    res.status(201).json({ success: true, data: { jobRole: result.rows[0] } });
+  } catch (error) {
+    console.error('Create job role error:', error);
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to create job role.' } });
+  }
+});
+
+/**
+ * GET /api/v1/job-roles/:id
+ * Retrieves a specific job role by its ID.
+ * Access: Authenticated Users
+ */
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(`
+      SELECT 
+        jr.*,
+        COUNT(u.id) as employee_count
+      FROM job_roles jr
+      LEFT JOIN users u ON jr.id = u.job_role_id AND u.is_active = true
+      WHERE jr.id = $1 AND jr.company_id = $2
+      GROUP BY jr.id
+    `, [id, req.user.company_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { code: 'JOB_ROLE_NOT_FOUND', message: 'Job role not found.' } });
+    }
+
+    res.json({ success: true, data: { jobRole: result.rows[0] } });
+  } catch (error) {
+    console.error('Get job role by ID error:', error);
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to fetch job role.' } });
+  }
+});
+
+/**
+ * PUT /api/v1/job-roles/:id
+ * Updates an existing job role.
+ * Access: Admin only
+ */
+router.put('/:id', authenticateToken, requireRole(['admin']), validateJobRole, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, hourlyRate, overtimeRate, description, isActive } = req.body;
+    
+    // Build the update query dynamically
+    const fields = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (title !== undefined) {
+      fields.push(`title = $${paramCount++}`);
+      values.push(title);
+    }
+    if (hourlyRate !== undefined) {
+      fields.push(`hourly_rate = $${paramCount++}`);
+      values.push(hourlyRate);
+    }
+    if (overtimeRate !== undefined) {
+      fields.push(`overtime_rate = $${paramCount++}`);
+      values.push(overtimeRate);
+    }
+    if (description !== undefined) {
+      fields.push(`description = $${paramCount++}`);
+      values.push(description);
+    }
+    if (isActive !== undefined) {
+      fields.push(`is_active = $${paramCount++}`);
+      values.push(isActive);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, error: { code: 'NO_UPDATES', message: 'No fields provided to update.' } });
+    }
+
+    values.push(id, req.user.company_id);
+
+    const result = await db.query(`
+      UPDATE job_roles
+      SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $${paramCount++} AND company_id = $${paramCount++}
+      RETURNING *
+    `, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { code: 'JOB_ROLE_NOT_FOUND', message: 'Job role not found or you do not have permission to edit it.' } });
+    }
+
+    res.json({ success: true, data: { jobRole: result.rows[0] } });
+
+  } catch (error) {
+    console.error('Update job role error:', error);
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to update job role.' } });
+  }
+});
+
+/**
+ * DELETE /api/v1/job-roles/:id
+ * Deactivates a job role (soft delete).
+ * Access: Admin only
+ */
+router.delete('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // IMPORTANT: Check if any active users are assigned to this role first.
+    const assignedUsers = await db.query(
+      'SELECT id FROM users WHERE job_role_id = $1 AND is_active = true',
+      [id]
+    );
+
+    if (assignedUsers.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'ROLE_IN_USE',
+          message: `Cannot deactivate this role. ${assignedUsers.rows.length} active user(s) are currently assigned to it. Please reassign them first.`
+        }
+      });
+    }
+
+    // Perform the soft delete by setting is_active to false
+    const result = await db.query(`
+      UPDATE job_roles
+      SET is_active = false, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1 AND company_id = $2 AND is_active = true
+      RETURNING id
+    `, [id, req.user.company_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: { code: 'JOB_ROLE_NOT_FOUND', message: 'Job role not found or is already inactive.' } });
+    }
+
+    res.status(200).json({ success: true, data: { message: 'Job role has been deactivated successfully.' } });
+
+  } catch (error) {
+    console.error('Delete job role error:', error);
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to deactivate job role.' } });
+  }
+});
+
+module.exports = router;
