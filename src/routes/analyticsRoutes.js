@@ -1,12 +1,12 @@
 const express = require('express');
 const analyticsController = require('../controllers/analyticsController');
 const { authenticateToken, requireRole } = require('../middleware/auth');
-const { applyRateLimit } = require('../middleware/rateLimiter');
+const { readOnlyLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
-// Apply rate limiting to all analytics routes
-router.use(applyRateLimit('analytics'));
+// Apply rate limiting to all analytics routes (using read-only limiter for higher limits)
+router.use(readOnlyLimiter);
 
 /**
  * @swagger

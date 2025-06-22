@@ -1,7 +1,7 @@
 const express = require('express');
 const timeTrackingController = require('../controllers/timeTrackingController');
 const { authenticateToken, requireRole } = require('../middleware/auth');
-const { applyRateLimit } = require('../middleware/rateLimiter');
+const { apiLimiter } = require('../middleware/rateLimiter');
 const {
   validateTimePunchCreation,
   validateTimePunchUpdate,
@@ -16,7 +16,7 @@ const {
 const router = express.Router();
 
 // Apply rate limiting to all time tracking routes
-router.use(applyRateLimit('timeTracking'));
+router.use(apiLimiter);
 
 /**
  * @swagger

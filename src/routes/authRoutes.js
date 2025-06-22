@@ -1,7 +1,11 @@
 const express = require('express');
 const authController = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/auth');
-const { applyRateLimit } = require('../middleware/rateLimiter');
+const { 
+  authLimiter, 
+  registrationLimiter, 
+  passwordResetLimiter 
+} = require('../middleware/rateLimiter');
 const {
   validateRegistration,
   validateLogin,
@@ -19,7 +23,7 @@ const router = express.Router();
  * @access  Public
  */
 router.post('/register',
-  applyRateLimit('auth_register'),
+  registrationLimiter,
   validateRegistration,
   authController.register
 );
@@ -30,7 +34,7 @@ router.post('/register',
  * @access  Public
  */
 router.post('/login',
-  applyRateLimit('auth_login'),
+  authLimiter,
   validateLogin,
   authController.login
 );
@@ -41,7 +45,7 @@ router.post('/login',
  * @access  Public
  */
 router.post('/refresh',
-  applyRateLimit('auth_refresh'),
+  authLimiter,
   validateRefreshToken,
   authController.refreshToken
 );
@@ -63,7 +67,7 @@ router.get('/me',
  */
 router.post('/change-password',
   authenticateToken,
-  applyRateLimit('password_change'),
+  authLimiter,
   validatePasswordChange,
   authController.changePassword
 );
@@ -84,7 +88,7 @@ router.post('/logout',
  * @access  Public
  */
 router.post('/forgot-password',
-  applyRateLimit('password_reset'),
+  passwordResetLimiter,
   validatePasswordResetRequest,
   authController.requestPasswordReset
 );
@@ -95,7 +99,7 @@ router.post('/forgot-password',
  * @access  Public
  */
 router.post('/reset-password',
-  applyRateLimit('password_reset'),
+  passwordResetLimiter,
   validatePasswordReset,
   authController.resetPassword
 );

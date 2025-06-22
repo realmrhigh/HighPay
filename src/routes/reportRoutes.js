@@ -4,12 +4,12 @@ const payrollController = require('../controllers/payrollController');
 const timeTrackingController = require('../controllers/timeTrackingController');
 const pdfService = require('../services/pdfService');
 const { authenticateToken, requireRole } = require('../middleware/auth');
-const { applyRateLimit } = require('../middleware/rateLimiter');
+const { apiLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
 // Apply rate limiting to all PDF routes
-router.use(applyRateLimit('reports'));
+router.use(apiLimiter);
 
 /**
  * @swagger

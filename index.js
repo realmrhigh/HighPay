@@ -7,7 +7,7 @@ const rateLimit = require('express-rate-limit');
 
 // Import configurations and utilities
 const { loadEnvironment } = require('./src/config/environment');
-const { connectDatabase } = require('./src/config/database');
+const { testConnection } = require('./src/config/database');
 const logger = require('./src/utils/logger');
 const { createResponse } = require('./src/utils/helpers');
 const { serve, setup } = require('./src/config/swagger');
@@ -15,7 +15,6 @@ const websocketService = require('./src/services/websocketService');
 
 // Import middleware
 const { errorHandler } = require('./src/middleware/errorHandler');
-const { applyRateLimit } = require('./src/middleware/rateLimiter');
 
 // Import routes
 const authRoutes = require('./src/routes/authRoutes');
@@ -137,7 +136,7 @@ app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api-docs', serve, setup);
 
 // 404 handler for undefined routes
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     success: false,
     error: {
@@ -160,9 +159,8 @@ app.use(errorHandler);
 
 // Start server function
 async function startServer() {
-  try {
-    // Connect to database
-    await connectDatabase();
+  try {    // Connect to database
+    await testConnection();
     
     // Start server
     const server = app.listen(port, () => {

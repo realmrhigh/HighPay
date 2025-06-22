@@ -1,7 +1,7 @@
 const express = require('express');
 const userController = require('../controllers/userController');
 const { authenticateToken, requireRole } = require('../middleware/auth');
-const { applyRateLimit } = require('../middleware/rateLimiter');
+const { apiLimiter } = require('../middleware/rateLimiter');
 const {
   validateUserCreation,
   validateUserUpdate,
@@ -13,7 +13,7 @@ const {
 const router = express.Router();
 
 // Apply rate limiting to all user routes
-router.use(applyRateLimit('users'));
+router.use(apiLimiter);
 
 /**
  * @route   GET /api/v1/users

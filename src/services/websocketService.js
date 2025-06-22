@@ -1,7 +1,7 @@
 const WebSocket = require('ws');
 const jwt = require('jsonwebtoken');
 const logger = require('../utils/logger');
-const { JWT_SECRET } = require('./environment');
+const environment = require('../config/environment');
 
 class WebSocketService {
   constructor() {
@@ -37,7 +37,7 @@ class WebSocketService {
         return false;
       }
 
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const decoded = jwt.verify(token, environment.auth.jwtSecret);
       info.req.user = decoded;
       return true;
     } catch (error) {

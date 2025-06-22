@@ -186,8 +186,46 @@ const isValidEmail = (email) => {
  * @param {number} ms - Milliseconds to sleep
  * @returns {Promise} - Promise that resolves after specified time
  */
-const sleep = (ms) => {
-  return new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms) => {  return new Promise(resolve => setTimeout(resolve, ms));
+};
+
+/**
+ * Create standardized success response
+ * @param {object} data - Response data
+ * @param {string} message - Optional success message
+ * @returns {object} - Standardized response object
+ */
+const createResponse = (data = {}, message = 'Success') => {
+  return {
+    success: true,
+    message,
+    data,
+    timestamp: new Date().toISOString()
+  };
+};
+
+/**
+ * Create standardized error response
+ * @param {string} message - Error message
+ * @param {string} code - Error code
+ * @param {object} details - Optional error details
+ * @returns {object} - Standardized error response object
+ */
+const createErrorResponse = (message = 'An error occurred', code = 'GENERAL_ERROR', details = null) => {
+  const errorResponse = {
+    success: false,
+    error: {
+      code,
+      message,
+      timestamp: new Date().toISOString()
+    }
+  };
+
+  if (details) {
+    errorResponse.error.details = details;
+  }
+
+  return errorResponse;
 };
 
 module.exports = {
@@ -203,5 +241,7 @@ module.exports = {
   calculateHours,
   formatCurrency,
   isValidEmail,
-  sleep
+  sleep,
+  createResponse,
+  createErrorResponse
 };

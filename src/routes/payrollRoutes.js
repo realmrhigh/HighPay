@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateToken, authorizeRoles } = require('../middleware/auth');
-const { validateRequest } = require('../middleware/validation');
-const { applyRateLimit } = require('../middleware/rateLimiter');
+const { authenticateToken, requireRole } = require('../middleware/auth');
+const { handleValidationErrors } = require('../middleware/validation');
+const { apiLimiter } = require('../middleware/rateLimiter');
 const payrollController = require('../controllers/payrollController');
-const { payrollValidators } = require('../validators/payrollValidators');
+const payrollValidators = require('../validators/payrollValidators');
 
 /**
  * @swagger
@@ -61,11 +61,7 @@ const { payrollValidators } = require('../validators/payrollValidators');
  */
 
 // Rate limiting for payroll operations
-const payrollRateLimit = applyRateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // Limit to 50 payroll operations per 15 minutes
-  message: 'Too many payroll operations, please try again later.'
-});
+const payrollRateLimit = apiLimiter;
 
 /**
  * @swagger
@@ -111,7 +107,7 @@ const payrollRateLimit = applyRateLimit({
  */
 router.get('/', 
   authenticateToken, 
-  authorizeRoles(['admin', 'manager']),
+  requireRole(['admin', 'manager']),
   payrollRateLimit,
   payrollController.getAllPayrolls
 );
@@ -145,7 +141,7 @@ router.get('/',
  */
 router.get('/:id',
   authenticateToken,
-  authorizeRoles(['admin', 'manager']),
+  requireRole(['admin', 'manager']),
   payrollController.getPayrollById
 );
 
@@ -195,11 +191,11 @@ router.get('/:id',
  */
 router.post('/',
   authenticateToken,
-  authorizeRoles(['admin']),
+  requireRole(['admin']),
   payrollRateLimit,
   payrollValidators.createPayroll,
-  validateRequest,
-  payrollController.createPayroll
+  handleValidationErrors,
+  payrollController.runPayroll
 );
 
 /**
@@ -244,11 +240,11 @@ router.post('/',
  */
 router.put('/:id',
   authenticateToken,
-  authorizeRoles(['admin']),
+  requireRole(['admin']),
   payrollRateLimit,
   payrollValidators.updatePayroll,
-  validateRequest,
-  payrollController.updatePayroll
+  handleValidationErrors,
+  payrollController.updatePayrollStatus
 );
 
 /**
@@ -288,7 +284,7 @@ router.put('/:id',
  */
 router.post('/:id/process',
   authenticateToken,
-  authorizeRoles(['admin']),
+  requireRole(['admin']),
   payrollRateLimit,
   payrollController.processPayroll
 );
@@ -313,9 +309,9 @@ router.post('/:id/process',
  */
 router.post('/:id/complete',
   authenticateToken,
-  authorizeRoles(['admin']),
+  requireRole(['admin']),
   payrollRateLimit,
-  payrollController.completePayroll
+  payrollController.finalizePayroll
 );
 
 /**
@@ -338,9 +334,9 @@ router.post('/:id/complete',
  */
 router.post('/:id/cancel',
   authenticateToken,
-  authorizeRoles(['admin']),
+  requireRole(['admin']),
   payrollRateLimit,
-  payrollController.cancelPayroll
+  payrollController.deletePayroll
 );
 
 /**
@@ -363,8 +359,11 @@ router.post('/:id/cancel',
  */
 router.get('/:id/employees',
   authenticateToken,
-  authorizeRoles(['admin', 'manager']),
-  payrollController.getPayrollEmployees
+  requireRole(['admin', 'manager']),
+  payrollController.getPayrollStats
 );
 
 module.exports = router;
+
+
+

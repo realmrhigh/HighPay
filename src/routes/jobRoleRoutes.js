@@ -1,7 +1,7 @@
 const express = require('express');
 const jobRoleController = require('../controllers/jobRoleController');
 const { authenticateToken, requireRole } = require('../middleware/auth');
-const { applyRateLimit } = require('../middleware/rateLimiter');
+const { apiLimiter } = require('../middleware/rateLimiter');
 const {
   validateJobRoleCreation,
   validateJobRoleUpdate,
@@ -12,7 +12,7 @@ const {
 const router = express.Router();
 
 // Apply rate limiting to all job role routes
-router.use(applyRateLimit('jobRoles'));
+router.use(apiLimiter);
 
 /**
  * @route   GET /api/v1/job-roles
