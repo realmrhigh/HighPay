@@ -1,21 +1,56 @@
 {
   "name": "highpay-backend",
   "version": "1.0.0",
-  "description": "Backend for HighPay MVP",
-  "main": "index.js",
-  "scripts": {
+  "description": "Backend API for HighPay MVP - A simple, fast, and intuitive payroll management system",
+  "main": "index.js",  "scripts": {
     "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/ --ext .js",
+    "lint:fix": "eslint src/ --ext .js --fix",
+    "format": "prettier --write src/",
+    "db:migrate": "node scripts/migrate.js",
+    "db:seed": "node scripts/seed.js",
+    "logs": "tail -f logs/app.log"
   },
   "keywords": [
     "payroll",
     "hr",
-    "api"
+    "api",
+    "express",
+    "postgresql",
+    "jwt",
+    "time-tracking",
+    "employee-management"
   ],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
+  "author": "HighPay Development Team",
+  "license": "ISC",  "dependencies": {
     "express": "^5.1.0",
-    "pg": "^8.16.2"
+    "pg": "^8.16.2",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.0",
+    "express-validator": "^7.0.1",
+    "express-rate-limit": "^7.1.5",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0",
+    "compression": "^1.7.4",
+    "multer": "^1.4.5-lts.1",    "firebase-admin": "^12.0.0",
+    "nodemailer": "^6.9.8"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1"
+  },
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
   }
 }

@@ -1,35 +1,253 @@
-# HighPay
-HighPay: Minimum Viable Product (MVP) v1.0 
-PlanCore Philosophy: The Pain-Free ExperienceThe primary goal of the HighPay MVP is to deliver on our core promise: a simple, fast, and
-intuitive payroll experience. We will relentlessly focus on the essential workflows that cause the most pain for businesses and employees, executing them with flawless
-simplicity. The beauty of v1.0 is not in having every feature, but in perfecting the features we have.
+# HighPay Backend MVP v1.0
 
-Pillar I: The Admin Dashboard (MVP)The essential command center for the business owner or HR manager.
-1. Simplified Onboarding:A clean sign-up flow for a "Head Management" user to create their company account.A simple workflow to add employees
-manually with core details (name, email, pay rate).
-2. Core Payroll Workflow:A streamlined "Run Payroll" process that focuses on verifying hours and confirming totals.Basic
-calculation of wages and standard deductions.A clear, final approval step.
-3. Essential Employee Management:A searchable list of all employees.The ability to view and edit core
-employee details (the features we built).
-4. Basic Reporting:The ability to view payroll history.A downloadable PDF of a simple Payroll Summary for each run.
+A Node.js/Express.js backend API for the HighPay payroll management system.
 
-Pillar II: The Employee Mobile App (MVP)The fast, no-nonsense tool for the employee.
-1. Home Screen:The intuitive layout we designed: at-a-glance status, clear clock-in/out button.
-2. 2. Core Time
-Tracking:Functional Clock In/Out: The large, central button is the primary interaction.Activity Log: A simple, running list of the day's punches (Clock In, Start Lunch, End
-Lunch, Clock Out).Compliance Timer: The passive, background timer that triggers the "Meal Break Required" notification after a set number of hours worked. It is a reminder, not
-a blocker.
-3. Pay Stub Access:A "Pay" tab that allows employees to view and download PDF versions of their past pay stubs.Pillar III: Real-Time Push Notifications (MVP)This is
-the "intelligent" layer that makes the app feel proactive and modern.
-For Managers / Admins:Missed Clock-In: "David Chen was scheduled for 9:00 AM but has not clocked in." (with
-one-tap contact info).Time-Off Request: "Eleanor Vance has requested time off."For Employees:Meal Break Reminder: "You've been working for 5 hours. A meal break is
-required."Payday Notification: "You've been paid! Your new pay stub is available."What's NOT in the MVP?To maintain focus, the following features from our master plan will be
-targeted for post-launch releases:Advanced AI: The AI Daily Briefing, AI Report Builder, and Onboarding Plan Generator.Complex Integrations: No direct integrations with
-QuickBooks, Xero, etc. in v1.0. We will focus on providing clear CSV exports.Deep Settings: No granular role permission editor, advanced branding, or complex security
-configurations.Detailed Scheduling: The full schedule builder and importer. The mobile app will simply show basic shift times set by the admin.This lean MVP delivers massive
-value by solving the most critical problems first. It allows us to launch, get user feedback, and build momentum toward our grander vision.
+## Project Overview
 
-HighPay MVP: Technical & Feature Specifications v1.0Document PurposeThis document provides the development team with detailed specifications for building the Minimum Viable Product (MVP) of HighPay. It is based on the strategic highpay_mvp_plan and translates its features into actionable user stories, acceptance criteria, and technical guidelines.Core PhilosophyThe MVP must be a fast, stable, and intuitive "pain-free experience." Every feature should be built with simplicity and reliability as the top priorities.Part 1: Core Backend & Data Models1.1 Technology StackFrontend: React (with Hooks)Backend: Node.js (with Express.js)Database: PostgreSQLPush Notifications: Firebase Cloud Messaging (FCM) or similar service.1.2 Core Database Schema (MVP)Companies:id (PK), name, created_atJobRoles (New Table):id (PK), company_id (FK), role_name (string), created_atUsers:id (PK), company_id (FK), name, email (unique), password_hash, permission_role (string: "Head Management", "Employee", etc.), job_role_id (FK to JobRoles), created_atPayrolls:id (PK), company_id (FK), pay_period_start, pay_period_end, pay_date, total_cost, status (DRAFT, COMPLETED), created_atPayStubs:id (PK), user_id (FK), payroll_id (FK), gross_pay, deductions, net_pay, pdf_urlTimePunches:id (PK), user_id (FK), timestamp, punch_type (CLOCK_IN, LUNCH_START, LUNCH_END, CLOCK_OUT)Part 2: Feature Specifications & User StoriesPillar I: The Admin DashboardFeature: Simplified Onboarding & Company SetupUser Story 1.1: As a new user, I want to sign up with my name, email, password, and company name, so that a new company and a "Head Management" user account are created.Acceptance Criteria:The user is automatically logged in upon successful sign-up.A new record is created in both the Companies and Users tables.The new user has the permission_role of Head Management.User Story 1.2: As a Head Manager, I want to create, view, and rename job roles (e.g., "Senior Designer," "Cashier"), so I can accurately categorize my employees.Acceptance Criteria:A new "Job Roles" section is available in the Settings page.The manager can add a new job role by providing a name.The manager can edit the name of an existing job role.This functionality is restricted to the Head Management user.User Story 1.3: As a Head Manager, I want to manually add a new employee by providing their name, email, and pay rate, and selecting their job role from a list.Acceptance Criteria:An "Add New Employee" button opens a modal form.The "Job Role" field in the form is a dropdown menu populated from the JobRoles table.Submitting the form creates a new record in the Users table linked to the manager's company.The new employee appears in the employee list immediately.Feature: Core Payroll WorkflowUser Story 2.1: As a Head Manager, I want to start a "Run Payroll" process, which allows me to verify employee hours and approve the final total cost.Acceptance Criteria:A multi-step modal guides the user through the process.Step 1 shows a summary of hours (mock data for MVP).Step 2 shows a summary of costs (mock data for MVP).Final approval creates a new record in the Payrolls table with COMPLETED status.Feature: Essential Employee ManagementUser Story 3.1: As a Head Manager, I want to see a list of all my employees and be able to search for them by name.Acceptance Criteria:The employee list updates in real-time as I type in the search bar.Each employee row displays their name, email, and job role.User Story 3.2: As a Head Manager, I want to view and edit the core details (name, email, pay rate, job role) of an employee.Acceptance Criteria:Clicking an employee opens a "View Details" modal.An "Edit" button within that modal opens an "Edit Details" modal, pre-filled with their information.The "Job Role" field is a dropdown menu.Saving the changes updates the employee's record in the database and reflects immediately in the main list.Feature: Basic ReportingUser Story 4.1: As a Head Manager, I want to view a history of all completed payroll runs.Acceptance Criteria:The Payroll page displays a table of past runs with dates and total costs.The table is sortable by Pay Date.User Story 4.2: As a Head Manager, I want to download a simple PDF summary for any past payroll run.Acceptance Criteria:A "Download" button exists for each run.For the MVP, this button can trigger an alert that says "TODO: Implement PDF generation."Pillar II: The Employee Mobile AppFeature: Core Time TrackingUser Story 5.1: As an Employee, I want to tap a large button to clock in when I start work and clock out when I finish.Acceptance Criteria:The button toggles between "Clock In" and "Clock Out" states.Each tap creates a new record in the TimePunches table with the correct punch_type.The user's status is clearly displayed on the home screen.User Story 5.2: As an Employee, I want to see a running log of my punches for the current day.Acceptance Criteria:An activity log appears after the first clock-in.It displays the type and time of each punch.It shows a calculated "Total Hours" at the end of the day.User Story 5.3: As an Employee, I want to be reminded to take a meal break if I work a long shift.Acceptance Criteria:After a set duration (e.g., 5 hours) from clock-in, a push notification is triggered.The UI on the home screen visually indicates that a meal break is required.Feature: Pay Stub AccessUser Story 6.1: As an Employee, I want to navigate to a "Pay" tab to see a list of my previous pay stubs.Acceptance Criteria:The list shows the pay date and net pay for each pay period.Tapping an item allows me to download a placeholder PDF.Pillar III: Real-Time Push NotificationsFeature: Critical AlertsUser Story 7.1: As a Manager, I want to receive a push notification when an employee on my team submits a time-off request.Acceptance Criteria:Notification is triggered by the corresponding API call (to be built post-MVP).The notification text is clear and actionable.User Story 7.2: As an Employee, I want to receive a push notification on payday.Acceptance Criteria:The notification is triggered when a payroll that includes the user is marked as COMPLETED.The text informs the user their pay stub is available.
+HighPay is a minimum viable product (MVP) focused on delivering a pain-free payroll experience for businesses and employees. This backend service provides the core API endpoints and database management for the HighPay platform.
 
-HighPay MVP: Task Distribution & Team AssignmentsProject Lead: Morgan HighCore Objective: Execute the HighPay MVP v1.0 as defined in the Technical & Feature Specifications document. The primary focus is on creating a stable, intuitive, and "pain-free" experience for both administrators and employees.Team Assignments & Core Responsibilities1. Backend TeamFocus: Build the server-side logic, database, and APIs that will power the entire HighPay platform.Task B1: Environment & Database SetupInitialize the Node.js/Express.js project structure.Implement the full PostgreSQL database schema as defined in the spec (Companies, Users, JobRoles, Payrolls, PayStubs, TimePunches).Create initial data migration scripts.Task B2: Authentication & User APIBuild secure API endpoints for user sign-up and login, including password hashing.Develop CRUD (Create, Read, Update, Delete) API endpoints for Users and JobRoles. Ensure endpoints are protected and only accessible by authorized permission roles.Task B3: Payroll & Time APIDevelop API endpoints to handle the "Run Payroll" workflow, creating and updating records in the Payrolls table.Build the API endpoint for recording TimePunches from the mobile app.Develop API endpoints to retrieve Payroll history and PayStub data.Task B4: Push Notification ServiceIntegrate with Firebase Cloud Messaging (FCM) or a similar service.Create backend listeners and triggers for the MVP push notifications (Meal Break Reminder, Payday Notification, etc.).2. Frontend Team (Admin Dashboard - React)Focus: Build the administrator-facing web application. The top priority is a clean, responsive, and intuitive user interface.Task F1: Project Setup & Core ComponentsInitialize the React project.Build the main application shell: the persistent sidebar, the header, and the content area router.Implement the Sign-Up and Login page components.Task F2: Employee & Role ManagementBuild the full EmployeesPage component, including the searchable/filterable grid.Implement all related modals: Add Employee, View Details, and Edit Details.Build the "Job Roles" management UI within the SettingsPage, connecting to the backend API.Task F3: Payroll WorkflowBuild the PayrollPage component, including the sortable history table.Implement the multi-step "Run Payroll" modal, connecting each step to the appropriate backend APIs.Wire up the placeholder "Download Report" button.Task F4: Final IntegrationIntegrate all pages into the main shell.Ensure all API calls are handled correctly, with proper loading and error states.Finalize UI polish and responsiveness.3. Mobile Team (Employee App - React Native)Focus: Build the employee-facing mobile app for iOS and Android. The experience must be extremely fast and simple.Task M1: Project Setup & Home ScreenInitialize the React Native project.Build the primary Home Screen UI, including the main clock button and status card.Task M2: Time Tracking ImplementationImplement the "Clock In/Out" logic, ensuring each tap sends a request to the backend TimePunches API.Build the "Today's Activity" log, which fetches and displays the user's punches for the day.Task M3: Compliance & Pay StubsImplement the background timer for the meal break compliance reminder.Build the UI logic to display the "Meal Break Required" alert.Build the "Pay" tab to fetch and list pay stubs, linking to a placeholder PDF download.4. DevOps & Infrastructure TeamFocus: Create a stable, scalable, and secure foundation for the application to run on.Task D1: Cloud EnvironmentProvision and configure the PostgreSQL database instance for development and staging.Set up the cloud hosting environment (e.g., AWS, Google Cloud) for the backend and frontend applications.Task D2: Continuous Integration/Continuous Deployment (CI/CD)Create automated build and deployment pipelines for the backend API.Create automated build and deployment pipelines for the React web application.Key Collaboration PointsAPI Contracts: The Backend team must work with the Frontend and Mobile teams first to define the exact structure (request and response) of all API endpoints. This is the top priority to allow parallel development.Push Notifications: Backend and Mobile teams must coordinate on the implementation of FCM tokens and notification payloads.
+### Core Philosophy
+The primary goal of the HighPay MVP is to deliver on our core promise: a simple, fast, and intuitive payroll experience. We relentlessly focus on the essential workflows that cause the most pain for businesses and employees, executing them with flawless simplicity.
+
+## Technology Stack
+
+- **Backend**: Node.js with Express.js
+- **Database**: PostgreSQL
+- **Authentication**: JWT (JSON Web Tokens)
+- **Password Hashing**: bcryptjs
+- **Validation**: express-validator
+- **Push Notifications**: Firebase Cloud Messaging (FCM)
+
+## Current Project Structure
+
+```
+highpay-backend/
+├── index.js                                    # Main application entry point
+├── package.json                               # Project dependencies and scripts
+├── package-lock.json                         # Dependency lock file
+├── .gitignore                                # Git ignore patterns
+├── README.md                                 # This file
+├── db/                                       # Database configuration and schema
+│   ├── index.js                             # Database connection setup
+│   └── schema.sql                           # PostgreSQL database schema
+├── Authentication API Endpoints & Middleware # Auth routes and middleware
+├── Users API (CRUD Endpoints)               # User management endpoints
+├── Job Roles API (CRUD Endpoints)           # Job role management endpoints
+├── Payroll & Pay Stubs API Endpoints        # Payroll processing endpoints
+├── Time Tracking API Endpoints              # Time punch tracking endpoints
+├── Push Notification Service (Firebase)     # Push notification implementation
+├── Backend Scripts Database & Validation    # Utility scripts and validation
+└── HighPay Backend v1.0 (Aligned with Spec) # Backend specification document
+```
+
+## Database Schema
+
+The application uses PostgreSQL with the following core tables:
+
+- **Companies**: Company information and settings
+- **Users**: Employee and manager accounts with role-based permissions
+- **JobRoles**: Job position definitions with pay rates
+- **Payrolls**: Payroll run records and status tracking
+- **PayStubs**: Individual employee pay stub records
+- **TimePunches**: Employee time tracking data (clock in/out, breaks)
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/login` - User authentication
+- `POST /api/auth/register` - Company and admin user registration
+- `POST /api/auth/logout` - User logout
+
+### Users Management
+- `GET /api/users` - List company employees (Admin/Manager only)
+- `POST /api/users` - Create new employee (Admin only)
+- `GET /api/users/:id` - Get employee details
+- `PUT /api/users/:id` - Update employee information
+- `DELETE /api/users/:id` - Deactivate employee
+
+### Job Roles
+- `GET /api/job-roles` - List company job roles
+- `POST /api/job-roles` - Create new job role (Admin only)
+- `PUT /api/job-roles/:id` - Update job role
+- `DELETE /api/job-roles/:id` - Delete job role
+
+### Time Tracking
+- `POST /api/time-punches` - Record time punch (clock in/out)
+- `GET /api/time-punches/user/:id` - Get user's time punches
+- `GET /api/time-punches/today` - Get today's punches for current user
+
+### Payroll
+- `GET /api/payrolls` - List payroll runs (Admin/Manager only)
+- `POST /api/payrolls` - Create new payroll run (Admin only)
+- `GET /api/payrolls/:id` - Get payroll details
+- `PUT /api/payrolls/:id/complete` - Mark payroll as completed
+
+### Pay Stubs
+- `GET /api/pay-stubs/user/:id` - Get user's pay stubs
+- `GET /api/pay-stubs/:id/pdf` - Download pay stub PDF
+
+## Setup and Installation
+
+### Prerequisites
+- Node.js (v14 or higher)
+- npm or yarn
+- PostgreSQL database
+
+### Installation Steps
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd initial-project-setup
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   Create a `.env` file in the root directory:
+   ```env
+   PORT=3000
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=highpay_dev
+   DB_USER=postgres
+   DB_PASSWORD=your_password
+   JWT_SECRET=your_jwt_secret_key
+   NODE_ENV=development
+   ```
+
+4. **Set up the database**
+   - Create a PostgreSQL database named `highpay_dev`
+   - Run the schema file to create tables:
+   ```bash
+   psql -U postgres -d highpay_dev -f db/schema.sql
+   ```
+
+5. **Start the development server**
+   ```bash
+   npm start
+   ```
+
+The server will start on `http://localhost:3000`
+
+## Development Scripts
+
+- `npm start` - Start the production server
+- `npm run dev` - Start the development server with auto-reload (requires nodemon)
+- `npm test` - Run tests (not yet implemented)
+
+## Project Organization Recommendations
+
+The current project structure uses descriptive file names but could benefit from a more traditional folder structure. Consider reorganizing as follows:
+
+```
+src/
+├── controllers/          # Route handlers and business logic
+├── middleware/          # Custom middleware functions
+├── models/             # Database models and queries  
+├── routes/             # Express route definitions
+├── utils/              # Utility functions and helpers
+├── services/           # External service integrations
+└── validators/         # Input validation schemas
+```
+
+## Project Organization Analysis
+
+### Current Structure Issues
+The current project has some organizational challenges that should be addressed:
+
+1. **File Naming**: API endpoint files are named with spaces and special characters, which can cause issues in some environments
+2. **Flat Structure**: All API-related files are in the root directory instead of organized folders
+3. **Mixed Content**: Business logic, routes, and middleware are mixed in single files
+
+### Recommended Restructure
+
+To improve maintainability and follow Node.js best practices, consider this structure:
+
+```
+src/
+├── config/
+│   ├── database.js          # Database configuration
+│   ├── auth.js              # Authentication configuration
+│   └── environment.js       # Environment variables
+├── controllers/
+│   ├── authController.js    # Authentication logic
+│   ├── userController.js    # User management logic
+│   ├── jobRoleController.js # Job role management
+│   ├── payrollController.js # Payroll processing
+│   └── timeController.js    # Time tracking logic
+├── middleware/
+│   ├── auth.js              # Authentication middleware
+│   ├── validation.js        # Input validation
+│   ├── errorHandler.js      # Error handling
+│   └── rateLimiter.js       # Rate limiting
+├── models/
+│   ├── User.js              # User data model
+│   ├── Company.js           # Company data model
+│   ├── JobRole.js           # Job role data model
+│   ├── Payroll.js           # Payroll data model
+│   └── TimePunch.js         # Time punch data model
+├── routes/
+│   ├── auth.js              # Authentication routes
+│   ├── users.js             # User management routes
+│   ├── jobRoles.js          # Job role routes
+│   ├── payroll.js           # Payroll routes
+│   └── time.js              # Time tracking routes
+├── services/
+│   ├── emailService.js      # Email notifications
+│   ├── pdfService.js        # PDF generation
+│   ├── pushNotificationService.js # Push notifications
+│   └── payrollService.js    # Payroll calculations
+├── utils/
+│   ├── logger.js            # Logging utility
+│   ├── helpers.js           # Common helper functions
+│   └── constants.js         # Application constants
+├── validators/
+│   ├── userValidator.js     # User input validation
+│   ├── authValidator.js     # Auth input validation
+│   └── payrollValidator.js  # Payroll validation
+└── tests/
+    ├── unit/                # Unit tests
+    ├── integration/         # Integration tests
+    └── fixtures/            # Test data
+```
+
+### Migration Steps
+
+1. **Create the new folder structure**
+2. **Move and rename existing files** to follow naming conventions
+3. **Extract business logic** from route files into controllers
+4. **Separate database queries** into model files
+5. **Update imports** throughout the application
+6. **Add comprehensive error handling**
+7. **Implement logging** throughout the application
+
+### Additional Recommendations
+
+1. **Add TypeScript** for better type safety and developer experience
+2. **Implement comprehensive testing** with Jest or Mocha
+3. **Add API documentation** using Swagger/OpenAPI
+4. **Set up ESLint and Prettier** for code consistency
+5. **Add Docker configuration** for containerized deployment
+6. **Implement proper logging** with Winston or similar
+7. **Add health check endpoints** for monitoring
+8. **Set up CI/CD pipeline** with GitHub Actions or similar
+
+## Next Steps
+
+1. **Immediate Priority**: Restructure the project following the recommended organization
+2. **Short Term**: Add proper error handling, logging, and input validation
+3. **Medium Term**: Implement comprehensive testing and API documentation
+4. **Long Term**: Add advanced features like real-time notifications and AI integration
+
+## License
+
+This project is licensed under the ISC License - see the [LICENSE](LICENSE) file for details.
+
+## Support
+
+For support and questions about the HighPay backend system, please contact the development team or create an issue in the project repository.
 
