@@ -116,8 +116,7 @@ The application uses PostgreSQL with the following core tables:
    DB_USER=postgres
    DB_PASSWORD=your_password
    JWT_SECRET=your_jwt_secret_key
-   NODE_ENV=development
-   ```
+   NODE_ENV=development   ```
 
 4. **Set up the database**
    - Create a PostgreSQL database named `highpay_dev`
@@ -133,11 +132,74 @@ The application uses PostgreSQL with the following core tables:
 
 The server will start on `http://localhost:3000`
 
+## 🐳 Docker Setup (Recommended)
+
+For the easiest setup experience, use Docker:
+
+### Quick Start with Docker
+
+1. **Prerequisites**
+   - Docker Desktop installed
+   - Docker Compose available
+
+2. **Development Setup**
+   ```bash
+   # Windows
+   scripts\dev-setup.bat
+   
+   # Linux/Mac
+   bash scripts/dev-setup.sh
+   
+   # Or manually
+   npm run docker:dev
+   ```
+
+3. **Production Deployment**
+   ```bash
+   # Linux/Mac
+   bash scripts/prod-deploy.sh
+   
+   # Or manually
+   npm run docker:prod
+   ```
+
+### Docker Services
+
+The Docker Compose setup includes:
+
+- **API Server**: Node.js application with hot reload in development
+- **PostgreSQL**: Database with automatic schema initialization
+- **Redis**: Cache and session storage
+- **Nginx**: Reverse proxy with SSL support (production)
+- **Prometheus**: Metrics collection (optional)
+- **Grafana**: Monitoring dashboard (optional)
+
+### Docker Commands
+
+```bash
+# Development
+npm run docker:dev          # Start development environment
+npm run docker:stop         # Stop all services
+npm run docker:logs         # View logs
+npm run docker:clean        # Clean up containers and volumes
+
+# Production
+npm run docker:prod         # Start production environment
+npm run setup:prod          # Full production deployment
+
+# Individual services
+docker-compose up postgres redis    # Start only database services
+docker-compose exec api bash        # Access API container
+docker-compose exec postgres psql -U postgres -d highpay_dev  # Access database
+```
+
 ## Development Scripts
 
 - `npm start` - Start the production server
 - `npm run dev` - Start the development server with auto-reload (requires nodemon)
-- `npm test` - Run tests (not yet implemented)
+- `npm test` - Run tests
+- `npm run docker:dev` - Start Docker development environment
+- `npm run docker:prod` - Start Docker production environment
 
 ## Project Organization Recommendations
 

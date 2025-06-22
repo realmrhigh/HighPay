@@ -1,8 +1,7 @@
 {
   "name": "highpay-backend",
   "version": "1.0.0",
-  "description": "Backend API for HighPay MVP - A simple, fast, and intuitive payroll management system",
-  "main": "index.js",
+  "description": "Backend API for HighPay MVP - A simple, fast, and intuitive payroll management system",  "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
@@ -14,7 +13,15 @@
     "format": "prettier --write src/",
     "db:migrate": "node scripts/migrate.js",
     "db:seed": "node scripts/seed.js",
-    "logs": "tail -f logs/app.log"
+    "logs": "tail -f logs/app.log",
+    "docker:build": "docker build -t highpay-backend .",
+    "docker:dev": "docker-compose --profile development up --build",
+    "docker:prod": "docker-compose --profile production up --build -d",
+    "docker:stop": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:clean": "docker-compose down -v --remove-orphans",
+    "setup:dev": "bash scripts/dev-setup.sh",
+    "setup:prod": "bash scripts/prod-deploy.sh"
   },
   "keywords": [
     "payroll",
