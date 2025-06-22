@@ -1,0 +1,21 @@
+{
+  "name": "highpay-backend",
+  "version": "1.0.0",
+  "description": "Backend for HighPay MVP",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "payroll",
+    "hr",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0",
+    "pg": "^8.16.2"
+  }
+}
