@@ -4,6 +4,7 @@ import { Box, useMediaQuery, useTheme } from '@mui/material'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import NotificationPanel from './NotificationPanel'
+import { OfflineIndicator } from '../OfflineIndicator'
 
 const Layout = () => {
   const theme = useTheme()
@@ -47,6 +48,9 @@ const Layout = () => {
           onNotificationToggle={handleNotificationToggle}
           sidebarOpen={sidebarOpen}
         />
+
+        {/* Offline Indicator */}
+        <OfflineIndicator />
 
         {/* Page Content */}
         <Box 

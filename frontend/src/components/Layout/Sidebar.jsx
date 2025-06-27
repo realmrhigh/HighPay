@@ -31,6 +31,10 @@ import {
   BusinessCenterOutlined,
   BarChartOutlined,
   SettingsOutlined,
+  LocationOn,
+  CalendarToday,
+  EditNote,
+  History,
 } from '@mui/icons-material'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
@@ -59,6 +63,24 @@ const navigationItems = [
     roles: ['admin', 'manager', 'employee'],
   },
   {
+    text: 'Locations',
+    path: '/locations',
+    icon: <LocationOn />,
+    roles: ['admin', 'manager'],
+  },
+  {
+    text: 'Schedules',
+    path: '/schedules',
+    icon: <CalendarToday />,
+    roles: ['admin', 'manager', 'employee'],
+  },
+  {
+    text: 'Corrections',
+    path: '/corrections',
+    icon: <EditNote />,
+    roles: ['admin', 'manager', 'employee'],
+  },
+  {
     text: 'Payroll',
     path: '/payroll',
     icon: <PaymentOutlined />,
@@ -80,6 +102,12 @@ const navigationItems = [
     text: 'Analytics',
     path: '/analytics',
     icon: <BarChartOutlined />,
+    roles: ['admin', 'manager'],
+  },
+  {
+    text: 'Audit Logs',
+    path: '/audit-logs',
+    icon: <History />,
     roles: ['admin', 'manager'],
   },
   {

@@ -1,6 +1,6 @@
 # HighPay React Dashboard
 
-A modern, responsive React dashboard for the HighPay payroll management system.
+A modern, responsive React dashboard for the HighPay payroll management system with advanced location-based time tracking and offline capabilities.
 
 ## 🚀 Features
 
@@ -9,9 +9,14 @@ A modern, responsive React dashboard for the HighPay payroll management system.
 - **Responsive Design**: Mobile-friendly interface that works on all devices
 - **Role-based Access**: Different views for Admin, Manager, and Employee roles
 - **Interactive Charts**: Visual analytics with Chart.js integration
-- **Time Tracking**: Built-in clock in/out functionality with GPS support
-- **Authentication**: Secure JWT-based authentication
-- **Notifications**: Real-time toast notifications and notification panel
+- **Location-based Time Tracking**: GPS and WiFi validation for clock in/out
+- **Offline Mode**: Local storage with background sync for poor connectivity
+- **Multi-location Support**: Geofencing and location management
+- **Schedule Management**: Recurring weekly schedules for employees
+- **Correction Requests**: Employee time punch correction workflow
+- **Audit Logging**: Complete audit trail for compliance
+- **Authentication**: Secure JWT-based authentication with strong password policy
+- **Progressive Web App**: PWA capabilities for mobile installation
 
 ## 🛠️ Technology Stack
 
@@ -19,19 +24,22 @@ A modern, responsive React dashboard for the HighPay payroll management system.
 - **Material-UI (MUI)** - Professional UI components
 - **Vite** - Fast build tool and dev server
 - **React Router** - Client-side routing
-- **React Query** - Server state management
+- **React Query** - Server state management with offline support
 - **Chart.js + React-ChartJS-2** - Interactive charts
 - **Socket.IO Client** - Real-time communication
 - **React Hook Form + Yup** - Form handling and validation
-- **Axios** - HTTP client
+- **Axios** - HTTP client with request interceptors
 - **Date-fns** - Date manipulation
 - **React Hot Toast** - Beautiful notifications
+- **LocalForage** - Offline storage for data persistence
+- **React-PWA** - Progressive Web App capabilities
 
 ## 📋 Prerequisites
 
 - Node.js (v16 or higher)
 - npm or yarn
 - HighPay Backend API running on port 3000
+- HTTPS for production (required for geolocation)
 
 ## 🚀 Quick Start
 
@@ -60,23 +68,38 @@ A modern, responsive React dashboard for the HighPay payroll management system.
 src/
 ├── components/           # Reusable UI components
 │   ├── Layout/          # Navigation and layout components
-│   └── UI/              # Common UI components
+│   ├── UI/              # Common UI components
+│   ├── LocationValidation/ # GPS and WiFi validation
+│   └── OfflineIndicator/   # Network status components
 ├── contexts/            # React contexts for state management
 │   ├── AuthContext.jsx  # Authentication state
-│   └── WebSocketContext.jsx # Real-time communication
+│   ├── WebSocketContext.jsx # Real-time communication
+│   ├── LocationContext.jsx  # Location services
+│   └── OfflineContext.jsx   # Offline state management
 ├── pages/               # Page components
 │   ├── Auth/           # Login and authentication
 │   ├── Dashboard/      # Main dashboard
 │   ├── Employees/      # Employee management
-│   ├── TimeTracking/   # Time tracking features
+│   ├── TimeTracking/   # Location-based time tracking
 │   ├── Payroll/        # Payroll management
 │   ├── PayStubs/       # Pay stub viewing
 │   ├── JobRoles/       # Job role management
+│   ├── Locations/      # Multi-location management (NEW)
+│   ├── Schedules/      # Schedule management (NEW)
+│   ├── Corrections/    # Time punch corrections (NEW)
 │   ├── Analytics/      # Reports and analytics
+│   ├── AuditLogs/      # Compliance audit logs (NEW)
 │   ├── Settings/       # System settings
 │   └── Profile/        # User profile
 ├── services/           # API services
-│   └── api.js          # HTTP client and API calls
+│   ├── api.js          # HTTP client and API calls
+│   ├── offlineStorage.js # Local storage management
+│   ├── locationService.js # GPS and geofencing
+│   └── syncService.js     # Background sync
+├── utils/              # Utility functions
+│   ├── validation.js   # Form validation rules
+│   ├── passwordPolicy.js # Strong password enforcement
+│   └── geolocation.js    # GPS utilities
 ├── App.jsx             # Main app component
 ├── main.jsx            # React entry point
 └── index.css           # Global styles
@@ -85,11 +108,25 @@ src/
 ## 🎨 UI Features
 
 ### Dashboard
-- **Real-time Status**: Live employee status and activity
-- **Quick Actions**: Clock in/out directly from dashboard
-- **Analytics Cards**: Key metrics at a glance
-- **Interactive Charts**: Visual data representation
-- **Recent Activity**: Live feed of system events
+- **Real-time Status**: Live employee status and location
+- **Location-aware Actions**: Clock in/out based on location validation
+- **Offline Indicator**: Clear network status and sync progress
+- **Analytics Cards**: Key metrics with location breakdowns
+- **Interactive Charts**: Visual data with location filtering
+- **Recent Activity**: Live feed with location context
+
+### Location-based Time Tracking
+- **GPS Validation**: Automatic location verification for time punches
+- **WiFi Detection**: Alternative validation using approved WiFi networks
+- **Geofencing**: Visual map showing allowed work areas
+- **Location History**: Track employee movement patterns
+- **Manual Corrections**: Employee-initiated time punch corrections
+
+### Multi-location Management
+- **Location Setup**: Create and configure work locations
+- **Geofence Configuration**: Set GPS boundaries and WiFi networks
+- **Employee Assignment**: Assign employees to primary locations
+- **Location Analytics**: Per-location performance metrics
 
 ### Navigation
 - **Responsive Sidebar**: Collapsible navigation with role-based menu items
@@ -105,11 +142,18 @@ src/
 
 ## 🔒 Authentication & Security
 
-- **JWT Tokens**: Secure token-based authentication
-- **Automatic Logout**: Handles expired tokens gracefully
-- **Role-based Access**: Different features for different user roles
-- **Secure Storage**: Tokens stored securely in localStorage
-- **Route Protection**: Unauthorized access prevention
+### Enhanced Security
+- **Strong Password Policy**: Enforced password complexity requirements
+- **Location Verification**: GPS and WiFi validation for time tracking
+- **Audit Logging**: Complete audit trail for all sensitive operations
+- **Rate Limiting**: Client-side request throttling
+- **Secure Token Storage**: Encrypted local storage
+
+### Compliance Features
+- **Data Retention**: Automatic compliance with 3-7 year retention requirements
+- **Audit Reports**: Downloadable compliance reports
+- **Time Correction Workflow**: Manager approval for time modifications
+- **Location Proof**: GPS coordinates stored with all time punches
 
 ## 📱 Responsive Design
 
@@ -119,25 +163,60 @@ src/
 - **Touch Friendly**: Large touch targets and gestures
 - **Accessibility**: WCAG compliant design patterns
 
+## 📱 Progressive Web App
+
+### PWA Features
+- **Mobile Installation**: Install as native app on mobile devices
+- **Offline Functionality**: Work without internet connection
+- **Background Sync**: Automatic data sync when connectivity returns
+- **Push Notifications**: Native mobile notifications
+- **App Shell**: Fast loading with cached resources
+
+### Offline Capabilities
+- **Local Storage**: Time punches stored locally when offline
+- **Sync Queue**: Automatic background synchronization
+- **Conflict Resolution**: Smart handling of sync conflicts
+- **Status Indicators**: Clear offline/online status display
+
+## 🌍 Location Services
+
+### GPS Integration
+- **High Accuracy**: Use device GPS for precise location tracking
+- **Geofencing**: Automatic validation against work location boundaries
+- **Location History**: Track and visualize employee locations
+- **Privacy Controls**: Location data only used for work purposes
+
+### WiFi Validation
+- **Network Detection**: Validate against approved WiFi networks
+- **Fallback Option**: Alternative when GPS is unavailable
+- **Security**: Encrypted WiFi SSID storage
+- **Multi-network Support**: Multiple approved networks per location
+
 ## 🚀 Development
 
 ### Available Scripts
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
+- `npm run dev` - Start development server with PWA features
+- `npm run build` - Build for production with PWA optimization
 - `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
-- `npm run format` - Format code with Prettier
+- `npm run lint` - Run ESLint with security rules
+- `npm run test` - Run unit tests including offline scenarios
 
 ### Development Features
 
-- **Hot Reload**: Instant updates during development
-- **React DevTools**: Enhanced debugging with React Query devtools
-- **ESLint**: Code quality and consistency
-- **Prettier**: Automatic code formatting
-- **Vite**: Lightning-fast build and reload times
+- **Location Simulation**: Mock GPS for development testing
+- **Offline Testing**: Network throttling for offline scenarios
+- **PWA DevTools**: Service worker debugging
+- **Security Linting**: Enhanced security rule enforcement
 
 ## 🌐 API Integration
+
+### Enhanced API Features
+- **Location Services**: GPS validation and geofencing APIs
+- **Offline Sync**: Batch sync for offline-collected data
+- **Correction Workflow**: Time punch correction approval process
+- **Audit Logging**: Comprehensive activity tracking
+- **Schedule Management**: Recurring schedule CRUD operations
 
 The dashboard integrates with the HighPay backend API:
 
@@ -148,28 +227,28 @@ The dashboard integrates with the HighPay backend API:
 - **Analytics**: Real-time and historical data
 - **WebSocket**: Live updates and notifications
 
-## 🎯 User Roles
+## 🎯 User Roles & Permissions
 
-### Employee
-- View personal dashboard
-- Clock in/out and break tracking
-- View personal pay stubs
-- Update profile information
-- Receive notifications
+### Employee (Enhanced)
+- Location-based clock in/out with GPS validation
+- Offline time tracking with automatic sync
+- Submit time correction requests
+- View location history and schedule
+- Receive location-based notifications
 
-### Manager
-- All employee features
-- View team analytics
-- Manage team members
-- Generate reports
-- Monitor real-time activity
+### Manager (Enhanced)
+- Approve/deny employee correction requests
+- View location-based team analytics
+- Manage employee schedules
+- Monitor real-time location status
+- Access location-specific audit logs
 
-### Admin
-- All manager features
-- System-wide analytics
-- Payroll management
-- User management
-- System configuration
+### Admin (Enhanced)
+- Multi-location setup and management
+- Geofence configuration and WiFi management
+- System-wide location analytics
+- Comprehensive audit log access
+- Global schedule and location oversight
 
 ## 🎨 Customization
 
@@ -228,6 +307,9 @@ Create a `.env` file for configuration:
 ```env
 VITE_API_BASE_URL=http://localhost:3000/api
 VITE_WS_URL=ws://localhost:3000
+VITE_GEOLOCATION_TIMEOUT=10000
+VITE_SYNC_INTERVAL=30000
+VITE_OFFLINE_STORAGE_KEY=highpay_offline
 ```
 
 ## 🛟 Troubleshooting
@@ -248,6 +330,21 @@ VITE_WS_URL=ws://localhost:3000
    - Clear localStorage and retry
    - Check token expiration
    - Verify user credentials
+
+### Location Issues
+1. **GPS Not Working**: Check browser permissions and HTTPS requirement
+2. **Geofencing Errors**: Verify location coordinates and radius settings
+3. **WiFi Detection**: Ensure proper network permissions
+
+### Offline Issues
+1. **Sync Failures**: Check network connectivity and server status
+2. **Storage Full**: Clear old offline data or increase storage limit
+3. **Conflicts**: Review sync conflict resolution logs
+
+### Security Issues
+1. **Password Policy**: Ensure compliance with strength requirements
+2. **Location Privacy**: Verify proper consent and data handling
+3. **Audit Gaps**: Check logging configuration for all sensitive operations
 
 ## 🤝 Contributing
 
