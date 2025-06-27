@@ -40,7 +40,7 @@ import {
   CalendarToday,
   AccessTime
 } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext.simple';
 import { format, parse } from 'date-fns';
 
 const DAYS_OF_WEEK = [

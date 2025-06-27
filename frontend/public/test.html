@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HighPay Simple Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            color: #333;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 500px;
+        }
+        button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #1565c0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 HighPay Static Test</h1>
+        <p>This is a simple HTML file to test if static assets load properly.</p>
+        <button onclick="testFunction()">Test JavaScript</button>
+        <button onclick="window.location.href='/'">Go to React App</button>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        function testFunction() {
+            document.getElementById('output').innerHTML = 
+                '<p style="color: green; margin-top: 20px;">✅ JavaScript is working!<br>' +
+                '📅 Current time: ' + new Date().toLocaleString() + '</p>';
+            console.log('✅ Static test page JavaScript working');
+        }
+        
+        console.log('📄 Static test page loaded');
+        console.log('🌍 Location:', window.location.href);
+    </script>
+</body>
+</html>

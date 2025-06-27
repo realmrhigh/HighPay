@@ -1,20 +1,4 @@
-import React, {function TestApp() {
-  const [count, setCount] = useState(0)
-  const [timestamp] = useState(new Date().toLocaleTimeString())
-  const navigate = useNavigate()
-  const location = useLocation()
-
-  useEffect(() => {
-    console.log('✅ TestApp with Router mounted successfully')
-    console.log('✅ Current route:', location.pathname)
-    console.log('✅ React Router working')
-  }, [location])
-
-  const handleNavigationTest = () => {
-    const newPath = location.pathname === '/' ? '/test' : '/'
-    console.log('🧭 Navigating to:', newPath)
-    navigate(newPath)
-  }e } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { 
   Box, 
@@ -32,21 +16,19 @@ import { PlayArrow, Refresh, CheckCircle, Navigation } from '@mui/icons-material
 function TestApp() {
   const [count, setCount] = useState(0)
   const [timestamp] = useState(new Date().toLocaleTimeString())
+  const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
-    console.log('✅ TestApp with Material-UI mounted successfully')
-    console.log('✅ React useEffect hook working')
-    console.log('📍 Current URL:', window.location.href)
-  }, [])
+    console.log('✅ TestApp with Router mounted successfully')
+    console.log('✅ Current route:', location.pathname)
+    console.log('✅ React Router working')
+  }, [location])
 
-  const handleClick = () => {
-    console.log('✅ Button click handler working')
-    setCount(count + 1)
-  }
-
-  const handleReset = () => {
-    console.log('� Reset button clicked')
-    setCount(0)
+  const handleNavigationTest = () => {
+    const newPath = location.pathname === '/' ? '/test' : '/'
+    console.log('🧭 Navigating to:', newPath)
+    navigate(newPath)
   }
 
   return (
@@ -66,17 +48,17 @@ function TestApp() {
             </Typography>
             
             <Alert severity="success" sx={{ mb: 3 }}>
-              React + Material-UI Successfully Loaded!
+              React + Material-UI + Router Successfully Loaded!
             </Alert>
 
             <Typography variant="h6" color="text.secondary" paragraph>
-              Progressive App Rebuild - Step 1
+              Progressive App Rebuild - Step 2
             </Typography>
             
             <Box sx={{ mb: 3 }}>
               <Chip 
                 icon={<CheckCircle />}
-                label={`Build Time: ${timestamp}`} 
+                label={`Build: ${timestamp}`} 
                 color="primary" 
                 sx={{ mr: 1, mb: 1 }}
               />
@@ -86,7 +68,8 @@ function TestApp() {
                 sx={{ mr: 1, mb: 1 }}
               />
               <Chip 
-                label={`Live Time: ${new Date().toLocaleTimeString()}`} 
+                icon={<Navigation />}
+                label={`Route: ${location.pathname}`} 
                 variant="outlined" 
                 sx={{ mb: 1 }}
               />
@@ -97,21 +80,32 @@ function TestApp() {
                 variant="contained" 
                 size="large" 
                 startIcon={<PlayArrow />}
-                onClick={handleClick}
+                onClick={() => setCount(count + 1)}
                 color="primary"
               >
-                Increment ({count})
+                Count: {count}
               </Button>
               <Button 
                 variant="outlined" 
                 size="large" 
                 startIcon={<Refresh />}
-                onClick={handleReset}
+                onClick={() => setCount(0)}
                 color="secondary"
               >
                 Reset
               </Button>
+              <Button 
+                variant="contained" 
+                size="large" 
+                startIcon={<Navigation />}
+                onClick={handleNavigationTest}
+                color="success"
+              >
+                Test Navigation
+              </Button>
             </Box>
+
+            <Divider sx={{ my: 3 }} />
 
             <Box sx={{ 
               textAlign: 'left', 
@@ -121,24 +115,24 @@ function TestApp() {
               mb: 3 
             }}>
               <Typography variant="body2" sx={{ mb: 1 }}>
-                ✅ <strong>React:</strong> Rendering & state management
+                ✅ <strong>React:</strong> {React.version} - State & effects
               </Typography>
               <Typography variant="body2" sx={{ mb: 1 }}>
                 ✅ <strong>Material-UI:</strong> Components & theming
               </Typography>
               <Typography variant="body2" sx={{ mb: 1 }}>
-                ✅ <strong>Emotion:</strong> CSS-in-JS styling
+                ✅ <strong>React Router:</strong> Navigation & routing
               </Typography>
               <Typography variant="body2" sx={{ mb: 1 }}>
-                ✅ <strong>Vite HMR:</strong> Hot module replacement
+                ✅ <strong>Vite HMR:</strong> Hot reloading active
               </Typography>
               <Typography variant="body2">
-                ✅ <strong>Browser:</strong> {navigator.userAgent.includes('Chrome') ? 'Chrome' : 'VS Code'}
+                ✅ <strong>Browser Cache:</strong> Cleared & working
               </Typography>
             </Box>
 
             <Typography variant="body2" color="text.secondary">
-              Next: Add Router → Auth Context → Location Context → Full App
+              <strong>Next Step:</strong> Add Auth Context → Location/Offline Contexts → Full App
             </Typography>
           </CardContent>
         </Card>

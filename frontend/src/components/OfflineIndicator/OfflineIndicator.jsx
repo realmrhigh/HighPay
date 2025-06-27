@@ -64,7 +64,7 @@ export function OfflineIndicator() {
 
   const getStatusIcon = () => {
     if (!isOnline) return <WifiOff />;
-    if (syncInProgress) return <Sync className="spinning" />;
+    if (syncInProgress) return <Sync sx={{ animation: 'spin 2s linear infinite', '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } } }} />;
     if (syncError) return <SyncProblem />;
     if (pendingOperations.length > 0) return <CloudQueue />;
     return <CloudDone />;
@@ -189,17 +189,6 @@ export function OfflineIndicator() {
           </Alert>
         </Snackbar>
       )}
-
-      <style jsx>{`
-        .spinning {
-          animation: spin 2s linear infinite;
-        }
-        
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </>
   );
 }

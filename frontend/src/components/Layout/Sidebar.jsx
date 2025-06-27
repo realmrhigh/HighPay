@@ -37,7 +37,7 @@ import {
   History,
 } from '@mui/icons-material'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../../contexts/AuthContext'
+import { useAuth } from '../../contexts/AuthContext.simple'
 import { useState } from 'react'
 
 const drawerWidth = 280

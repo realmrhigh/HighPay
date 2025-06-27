@@ -46,7 +46,7 @@ import {
   Schedule,
   LocationOn
 } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext.simple';
 import { format, parseISO, subDays, startOfDay, endOfDay } from 'date-fns';
 
 const ACTION_TYPES = {

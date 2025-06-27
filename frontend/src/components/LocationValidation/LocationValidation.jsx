@@ -29,7 +29,7 @@ import {
   Warning,
   Map
 } from '@mui/icons-material';
-import { useLocation } from '../../contexts/LocationContext';
+import { useLocation } from '../../contexts/LocationContext.simple';
 import { geolocation } from '../../utils/geolocation';
 
 export function LocationValidation({ onValidationChange, showMap = false }) {

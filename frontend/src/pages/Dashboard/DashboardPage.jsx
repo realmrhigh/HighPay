@@ -53,8 +53,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts'
 import { format, subDays, startOfWeek, endOfWeek, subWeeks } from 'date-fns'
 import toast from 'react-hot-toast'
-import { useAuth } from '../../contexts/AuthContext'
-import { useWebSocket } from '../../contexts/WebSocketContext'
+import { useAuth } from '../../contexts/AuthContext.simple'
+import { useWebSocket } from '../../contexts/WebSocketContext.simple'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 // Enhanced mock data generators

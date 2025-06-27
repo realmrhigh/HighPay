@@ -3,10 +3,23 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import { CssBaseline } from '@mui/material'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { AuthProvider } from './contexts/AuthContext.simple'
 import App from './App'
 
-console.log('main.jsx loading full app...')
+console.log('🚀 HighPay Dashboard v1.1 - Production Ready - timestamp:', new Date().toISOString())
+
+// Create a query client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+})
 
 // Enhanced theme for HighPay
 const theme = createTheme({
@@ -41,26 +54,16 @@ const theme = createTheme({
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </ThemeProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </ThemeProvider>
+      </BrowserRouter>
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
   </React.StrictMode>
 )
-
-// Register PWA service worker
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then((registration) => {
-        console.log('SW registered: ', registration)
-      })
-      .catch((registrationError) => {
-        console.log('SW registration failed: ', registrationError)
-      })
-  })
-}

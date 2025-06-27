@@ -42,7 +42,7 @@ import {
   Edit,
   History
 } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext.simple';
 import { useOffline } from '../../contexts/OfflineContext';
 import { format, parseISO } from 'date-fns';
 

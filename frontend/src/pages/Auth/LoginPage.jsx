@@ -20,7 +20,7 @@ import {
   VisibilityOff,
   Login,
 } from '@mui/icons-material'
-import { useAuth } from '../../contexts/AuthContext'
+import { useAuth } from '../../contexts/AuthContext.simple'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { yupResolver } from '@hookform/resolvers/yup'

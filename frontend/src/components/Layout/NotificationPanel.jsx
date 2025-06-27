@@ -24,7 +24,7 @@ import {
   Circle,
   ClearAll,
 } from '@mui/icons-material'
-import { useWebSocket } from '../../contexts/WebSocketContext'
+import { useWebSocket } from '../../contexts/WebSocketContext.simple'
 import { formatDistanceToNow } from 'date-fns'
 
 const getNotificationIcon = (type) => {

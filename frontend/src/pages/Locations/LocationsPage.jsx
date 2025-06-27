@@ -36,7 +36,7 @@ import {
   Visibility,
   GpsFixed
 } from '@mui/icons-material';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext.simple';
 import { locationService } from '../../services/locationService';
 import { geolocation } from '../../utils/geolocation';
 import { LocationValidation } from '../../components/LocationValidation';

@@ -22,8 +22,8 @@ import {
   WifiTetheringOff,
 } from '@mui/icons-material'
 import { useState } from 'react'
-import { useAuth } from '../../contexts/AuthContext'
-import { useWebSocket } from '../../contexts/WebSocketContext'
+import { useAuth } from '../../contexts/AuthContext.simple'
+import { useWebSocket } from '../../contexts/WebSocketContext.simple'
 import { useNavigate } from 'react-router-dom'
 
 const Header = ({ onSidebarToggle, onNotificationToggle, sidebarOpen }) => {
